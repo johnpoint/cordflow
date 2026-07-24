@@ -157,7 +157,6 @@
                 step="1"
                 value={currentVolume}
                 class:output-volume-card__range--boost={currentVolume > 100}
-                disabled={pending}
                 aria-label={t('applicationVolumeFor', { name: application.name })}
                 data-testid={`application-volume-slider-${testId}`}
                 oninput={(event) => previewVolume(application.id, event)}
@@ -186,7 +185,6 @@
               step="1"
               inputmode="numeric"
               value={currentVolume}
-              disabled={pending}
               aria-label={t('editApplicationVolume', { name: application.name })}
               data-testid={`application-volume-number-${testId}`}
               onchange={(event) => commitVolume(application.id, application.volumePercent, event)}
@@ -197,7 +195,7 @@
           <button
             class="output-volume-card__reset"
             type="button"
-            disabled={pending || currentVolume === 100}
+            disabled={currentVolume === 100}
             data-testid={`application-volume-reset-${testId}`}
             onclick={() => resetVolume(application.id)}
           >

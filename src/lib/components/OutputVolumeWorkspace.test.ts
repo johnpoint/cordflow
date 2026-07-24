@@ -231,4 +231,54 @@ describe('OutputVolumeWorkspace', () => {
     await fireEvent.click(getByTestId('application-volume-mute-org-mozilla-firefox'));
     expect(onSetApplicationMuted).toHaveBeenCalledWith('org.mozilla.firefox', true);
   });
+
+  it('keeps application volume controls interactive while a backend update is pending', async () => {
+    const onSetApplicationVolume = vi.fn();
+    const { getByTestId } = render(OutputVolumeWorkspace, {
+      props: {
+        nodes: [],
+        applications: [
+          {
+            id: 'org.mozilla.firefox',
+            name: 'Firefox',
+            volumePercent: 35,
+            muted: false,
+            lastSeenAt: Date.now(),
+            active: true,
+            nodeIds: [11],
+          },
+        ],
+        outputLevels: {},
+        defaultAudioSinkName: null,
+        pendingNodeIds: new Set([11]),
+        pendingDefaultNodeId: null,
+        t,
+        onSetVolume: vi.fn(),
+        onSetMuted: vi.fn(),
+        onSetDefault: vi.fn(),
+        onSetApplicationVolume,
+        onSetApplicationMuted: vi.fn(),
+      },
+    });
+
+    await fireEvent.click(getByTestId('mixer-application-volume-tab'));
+    const slider = getByTestId('application-volume-slider-org-mozilla-firefox') as HTMLInputElement;
+    const number = getByTestId('application-volume-number-org-mozilla-firefox') as HTMLInputElement;
+    const reset = getByTestId('application-volume-reset-org-mozilla-firefox') as HTMLButtonElement;
+    const mute = getByTestId('application-volume-mute-org-mozilla-firefox') as HTMLButtonElement;
+
+    expect(slider.disabled).toBe(false);
+    expect(number.disabled).toBe(false);
+    expect(reset.disabled).toBe(false);
+    expect(mute.disabled).toBe(true);
+
+    await fireEvent.input(slider, { target: { value: '36' } });
+    await fireEvent.input(slider, { target: { value: '37' } });
+    await fireEvent.input(slider, { target: { value: '38' } });
+
+    expect(slider.value).toBe('38');
+    await vi.waitFor(() => {
+      expect(onSetApplicationVolume).toHaveBeenLastCalledWith('org.mozilla.firefox', 38);
+    });
+  });
 });

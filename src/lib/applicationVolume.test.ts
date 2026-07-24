@@ -121,6 +121,43 @@ describe('application volume memory', () => {
     ).toEqual([11]);
   });
 
+  it('keeps application controls in a stable order while their volume changes', () => {
+    const preferences = [
+      {
+        id: 'org.mozilla.firefox',
+        name: 'Firefox',
+        volumePercent: 80,
+        muted: false,
+        lastSeenAt: now - 20_000,
+      },
+      {
+        id: 'com.spotify.Client',
+        name: 'Spotify',
+        volumePercent: 100,
+        muted: false,
+        lastSeenAt: now - 10_000,
+      },
+    ];
+    const initialOrder = reconcileApplicationVolumes(preferences, [], [], now).applications.map(
+      (application) => application.id,
+    );
+    const updatedPreferences = updateApplicationVolumePreference(
+      preferences,
+      'org.mozilla.firefox',
+      { volumePercent: 35 },
+      now,
+    );
+    const updatedOrder = reconcileApplicationVolumes(
+      updatedPreferences,
+      [],
+      [],
+      now,
+    ).applications.map((application) => application.id);
+
+    expect(initialOrder).toEqual(['org.mozilla.firefox', 'com.spotify.Client']);
+    expect(updatedOrder).toEqual(initialOrder);
+  });
+
   it('drops malformed storage without breaking startup', () => {
     expect(readApplicationVolumePreferences({ getItem: () => '{"unexpected":true}' }, now)).toEqual(
       [],

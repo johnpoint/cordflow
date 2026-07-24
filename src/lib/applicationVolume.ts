@@ -160,21 +160,16 @@ export function reconcileApplicationVolumes(
   }
 
   const next = [...nextPreferences.values()];
-  const applications = next
-    .map((preference): ApplicationVolumeItem => {
-      const groupedNodes = activeNodes.get(preference.id) ?? [];
-      return {
-        ...preference,
-        nodeIds: groupedNodes.map((node) => node.id),
-        active: groupedNodes.length > 0,
-      };
-    })
-    .sort(
-      (left, right) =>
-        Number(right.active) - Number(left.active) ||
-        right.lastSeenAt - left.lastSeenAt ||
-        left.name.localeCompare(right.name),
-    );
+  // Preserve the preference insertion order so volume edits and short-lived
+  // stream activity cannot move a control while the user is interacting with it.
+  const applications = next.map((preference): ApplicationVolumeItem => {
+    const groupedNodes = activeNodes.get(preference.id) ?? [];
+    return {
+      ...preference,
+      nodeIds: groupedNodes.map((node) => node.id),
+      active: groupedNodes.length > 0,
+    };
+  });
   const rememberedNodeIds = [...activeNodes.entries()]
     .filter(([id]) => rememberedIds.has(id))
     .flatMap(([, groupedNodes]) => groupedNodes.map((node) => node.id));
