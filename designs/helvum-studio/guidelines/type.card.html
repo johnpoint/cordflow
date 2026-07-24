@@ -1,0 +1,26 @@
+<!-- @dsCard group="Foundations" viewport="700x240" name="Desktop type scale" subtitle="Readable multilingual hierarchy from 11px support text" -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="../styles.css">
+    <style>
+      body { display: grid; gap: 10px; padding: 22px; }
+      p { margin: 0; }
+      .display { color: var(--hs-text-strong); font-size: var(--hs-font-size-display); font-weight: var(--hs-weight-bold); }
+      .heading { color: var(--hs-text-strong); font-size: var(--hs-font-size-heading); font-weight: var(--hs-weight-semibold); }
+      .body { font-size: var(--hs-font-size-body); }
+      .support { color: var(--hs-text-muted); font-size: var(--hs-font-size-xs); }
+      .mono { color: var(--hs-accent); font: var(--hs-font-size-sm) var(--hs-font-mono); }
+      [lang='zh-CN'] { line-height: 1.75; }
+    </style>
+  </head>
+  <body>
+    <p class="display">Audio routing / 音频路由</p>
+    <p class="heading">Firefox → EasyEffects → Built-in Audio</p>
+    <p class="body">Automatic stereo matching keeps both channels aligned while each route remains independently controllable.</p>
+    <p class="body" lang="zh-CN">自动立体声匹配会保持左右声道对齐，同时每条路由仍可独立控制。</p>
+    <p class="support">Support copy never drops below 11px.</p>
+    <p class="mono">Node 24 · output_FL · P103</p>
+  </body>
+</html>

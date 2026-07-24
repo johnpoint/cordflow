@@ -1,0 +1,13 @@
+[default]
+description = "Allows the main Cordflow window to manage the PipeWire graph, default devices, and output volumes."
+permissions = [
+  "allow-subscribe-graph",
+  "allow-subscribe-output-levels",
+  "allow-set-output-metering",
+  "allow-get-graph-snapshot",
+  "allow-create-link",
+  "allow-remove-link",
+  "allow-set-default-audio-sink",
+  "allow-set-default-audio-source",
+  "allow-set-output-volume",
+]

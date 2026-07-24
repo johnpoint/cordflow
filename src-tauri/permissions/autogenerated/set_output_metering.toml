@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-output-metering"
+description = "Enables the set_output_metering command without any pre-configured scope."
+commands.allow = ["set_output_metering"]
+
+[[permission]]
+identifier = "deny-set-output-metering"
+description = "Denies the set_output_metering command without any pre-configured scope."
+commands.deny = ["set_output_metering"]

@@ -1,0 +1,55 @@
+{
+  "type": "design",
+  "title": "Cordflow UX Overhaul",
+  "prompt": "Systematically redesign Cordflow around an output-first workspace order, an output-mixer default, clearer task-based naming, and a default-off advanced-mode switch. Bind the interface to the opencode.ai design system imported by getdesign in DESIGN.md: warm cream canvas, ink-first hierarchy, all-monospace typography, hairline structure, no shadows or gradients, ASCII markers, square containers, and 4px interactive controls.",
+  "designSystems": [
+    {
+      "name": "cordflow-studio-design",
+      "slug": "helvum-studio",
+      "namespace": "HelvumStudio_38c7d4",
+      "dsFolder": "_ds/helvum-studio",
+      "sourcePath": "designs/helvum-studio"
+    }
+  ],
+  "primaryDesignSystem": "helvum-studio",
+  "startingPoint": {
+    "name": "helvum",
+    "kind": "screen",
+    "dsSlug": "helvum-studio",
+    "section": "Product screens"
+  },
+  "createdAt": "2026-07-23T06:18:14.099Z",
+  "updatedAt": "2026-07-24T03:39:44.713Z",
+  "assets": {
+    "Direction Exploration": {
+      "versions": [
+        {
+          "path": "exploration.html",
+          "createdAt": "2026-07-23T06:20:30.656Z",
+          "status": "needs-review",
+          "subtitle": "Studio Console, Patch Canvas, and Flow Lanes on identical graph data",
+          "viewport": {
+            "width": 1320,
+            "height": 860
+          },
+          "section": "Exploration"
+        }
+      ]
+    },
+    "Studio Console Prototype": {
+      "versions": [
+        {
+          "path": "prototype.html",
+          "createdAt": "2026-07-23T06:20:30.749Z",
+          "status": "needs-review",
+          "subtitle": "Cordflow output mixer with dark/light blue L/R ambient spectrum, device/application volume tabs, and seven-day application memory",
+          "viewport": {
+            "width": 1320,
+            "height": 860
+          },
+          "section": "Final"
+        }
+      ]
+    }
+  }
+}

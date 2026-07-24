@@ -1,0 +1,13 @@
+node_modules/
+dist/
+test-results/
+playwright-report/
+coverage/
+.agents/
+.claude/
+.codex/
+skills-lock.json
+src-tauri/target/
+src-tauri/gen/
+.DS_Store
+*.log

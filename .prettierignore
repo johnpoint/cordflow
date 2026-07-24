@@ -1,0 +1,12 @@
+dist
+node_modules
+.agents
+.claude
+.codex
+designs
+playwright-report
+src-tauri/gen
+src-tauri/target
+test-results
+pnpm-lock.yaml
+src/lib/generated/graph.ts

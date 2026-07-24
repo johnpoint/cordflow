@@ -1,0 +1,21 @@
+:root {
+  --hs-font-sans:
+    'Berkeley Mono', 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo,
+    Monaco, Consolas, 'Liberation Mono', 'Courier New', 'PingFang SC', 'Noto Sans Mono CJK SC',
+    monospace; /* @kind other */
+  --hs-font-mono: var(--hs-font-sans); /* @kind other */
+  --hs-font-size-xs: 11px;
+  --hs-font-size-sm: 12px;
+  --hs-font-size-body: 13px;
+  --hs-font-size-title: 15px;
+  --hs-font-size-heading: 18px;
+  --hs-font-size-display: 24px;
+  --hs-line-tight: 1.2; /* @kind other */
+  --hs-line-body: 1.5; /* @kind other */
+  --hs-weight-medium: 500; /* @kind other */
+  --hs-weight-semibold: 600; /* @kind other */
+  --hs-weight-bold: 700; /* @kind other */
+  font-family: var(--hs-font-sans);
+  font-size: var(--hs-font-size-body);
+  line-height: var(--hs-line-body);
+}

@@ -1,0 +1,34 @@
+<!-- @dsCard group="Foundations" viewport="700x220" name="Targets and spacing" subtitle="32–36px controls, 34px ports, and a 4px base rhythm" -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="../styles.css">
+    <style>
+      body { display: grid; gap: 22px; padding: 24px; }
+      .row { display: flex; align-items: center; gap: 16px; }
+      .measure { display: grid; place-items: center; color: var(--hs-text-strong); background: var(--hs-surface-raised); border: 1px solid var(--hs-border-strong); border-radius: var(--hs-radius-sm); }
+      .control { width: 120px; height: var(--hs-control-height); }
+      .primary { width: 140px; height: var(--hs-control-height-primary); background: var(--hs-text-strong); color: var(--hs-surface-canvas); }
+      .port { width: var(--hs-port-target); height: var(--hs-port-target); border-radius: 50%; }
+      .steps { display: flex; align-items: end; gap: 12px; }
+      .step { display: grid; place-items: center; width: 58px; background: var(--hs-accent-soft); border: 1px solid var(--hs-accent); }
+    </style>
+  </head>
+  <body>
+    <div class="row">
+      <div class="measure control">32px</div>
+      <div class="measure primary">36px primary</div>
+      <div class="measure port">34</div>
+    </div>
+    <div class="steps">
+      <div class="step" style="height: 16px">4</div>
+      <div class="step" style="height: 24px">8</div>
+      <div class="step" style="height: 32px">12</div>
+      <div class="step" style="height: 40px">16</div>
+      <div class="step" style="height: 48px">20</div>
+      <div class="step" style="height: 56px">24</div>
+      <div class="step" style="height: 64px">32</div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,814 @@
+{
+  "namespace": "HelvumStudio_38c7d4",
+  "components": [
+    {
+      "name": "Button",
+      "sourcePath": "components/core/Button.jsx",
+      "props": [
+        {
+          "name": "children",
+          "type": "React.ReactNode"
+        },
+        {
+          "name": "variant",
+          "values": [
+            "default",
+            "primary",
+            "ghost",
+            "danger"
+          ]
+        },
+        {
+          "name": "disabled",
+          "type": "boolean"
+        },
+        {
+          "name": "onClick",
+          "type": "() => void"
+        },
+        {
+          "name": "type",
+          "values": [
+            "button",
+            "submit"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "IconButton",
+      "sourcePath": "components/core/IconButton.jsx",
+      "props": [
+        {
+          "name": "label",
+          "type": "string"
+        },
+        {
+          "name": "children",
+          "type": "React.ReactNode"
+        },
+        {
+          "name": "disabled",
+          "type": "boolean"
+        },
+        {
+          "name": "onClick",
+          "type": "() => void"
+        }
+      ]
+    },
+    {
+      "name": "Notice",
+      "sourcePath": "components/core/Notice.jsx",
+      "props": [
+        {
+          "name": "children",
+          "type": "React.ReactNode"
+        },
+        {
+          "name": "tone",
+          "values": [
+            "neutral",
+            "danger"
+          ]
+        },
+        {
+          "name": "action",
+          "type": "React.ReactNode"
+        }
+      ]
+    },
+    {
+      "name": "StatusBadge",
+      "sourcePath": "components/core/StatusBadge.jsx",
+      "props": [
+        {
+          "name": "children",
+          "type": "React.ReactNode"
+        },
+        {
+          "name": "tone",
+          "values": [
+            "neutral",
+            "success",
+            "warning",
+            "danger"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "SpectrumAnalyzer",
+      "sourcePath": "components/mixer/SpectrumAnalyzer.jsx",
+      "props": [
+        {
+          "name": "device",
+          "type": "string"
+        },
+        {
+          "name": "leftBands",
+          "type": "number[]"
+        },
+        {
+          "name": "rightBands",
+          "type": "number[]"
+        }
+      ]
+    },
+    {
+      "name": "VolumeControl",
+      "sourcePath": "components/mixer/VolumeControl.jsx",
+      "props": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "detail",
+          "type": "string"
+        },
+        {
+          "name": "value",
+          "type": "number"
+        },
+        {
+          "name": "level",
+          "type": "number"
+        },
+        {
+          "name": "muted",
+          "type": "boolean"
+        },
+        {
+          "name": "onChange",
+          "type": "(value: number) => void"
+        },
+        {
+          "name": "onMute",
+          "type": "(muted: boolean) => void"
+        }
+      ]
+    },
+    {
+      "name": "DeviceSelector",
+      "sourcePath": "components/navigation/DeviceSelector.jsx",
+      "props": [
+        {
+          "name": "label",
+          "type": "string"
+        },
+        {
+          "name": "value",
+          "type": "string"
+        },
+        {
+          "name": "options",
+          "type": "DeviceOption[]"
+        },
+        {
+          "name": "disabled",
+          "type": "boolean"
+        },
+        {
+          "name": "onChange",
+          "type": "(value: string) => void"
+        }
+      ]
+    },
+    {
+      "name": "ModeSwitch",
+      "sourcePath": "components/navigation/ModeSwitch.jsx",
+      "props": [
+        {
+          "name": "label",
+          "type": "string"
+        },
+        {
+          "name": "checked",
+          "type": "boolean"
+        },
+        {
+          "name": "disabled",
+          "type": "boolean"
+        },
+        {
+          "name": "onLabel",
+          "type": "string"
+        },
+        {
+          "name": "offLabel",
+          "type": "string"
+        },
+        {
+          "name": "onChange",
+          "type": "(checked: boolean) => void"
+        }
+      ]
+    },
+    {
+      "name": "WorkspaceNav",
+      "sourcePath": "components/navigation/WorkspaceNav.jsx",
+      "props": [
+        {
+          "name": "items",
+          "type": "WorkspaceNavItem[]"
+        },
+        {
+          "name": "activeId",
+          "type": "string"
+        },
+        {
+          "name": "onChange",
+          "type": "(id: string) => void"
+        }
+      ]
+    },
+    {
+      "name": "Dialog",
+      "sourcePath": "components/overlays/Dialog.jsx",
+      "props": [
+        {
+          "name": "title",
+          "type": "string"
+        },
+        {
+          "name": "description",
+          "type": "string"
+        },
+        {
+          "name": "children",
+          "type": "React.ReactNode"
+        },
+        {
+          "name": "footer",
+          "type": "React.ReactNode"
+        },
+        {
+          "name": "onClose",
+          "type": "() => void"
+        }
+      ]
+    },
+    {
+      "name": "Drawer",
+      "sourcePath": "components/overlays/Drawer.jsx",
+      "props": [
+        {
+          "name": "title",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "ConnectionRow",
+      "sourcePath": "components/routing/ConnectionRow.jsx",
+      "props": [
+        {
+          "name": "from",
+          "type": "string"
+        },
+        {
+          "name": "to",
+          "type": "string"
+        },
+        {
+          "name": "media",
+          "type": "string"
+        },
+        {
+          "name": "selected",
+          "type": "boolean"
+        },
+        {
+          "name": "action",
+          "type": "React.ReactNode"
+        }
+      ]
+    },
+    {
+      "name": "NodeCard",
+      "sourcePath": "components/routing/NodeCard.jsx",
+      "props": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "detail",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "PortSocket",
+      "sourcePath": "components/routing/PortSocket.jsx",
+      "props": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "id",
+          "type": "string | number"
+        },
+        {
+          "name": "media",
+          "values": [
+            "audio",
+            "video",
+            "midi",
+            "unknown"
+          ]
+        },
+        {
+          "name": "direction",
+          "values": [
+            "input",
+            "output"
+          ]
+        },
+        {
+          "name": "selected",
+          "type": "boolean"
+        },
+        {
+          "name": "onClick",
+          "type": "() => void"
+        }
+      ]
+    },
+    {
+      "name": "RouteLane",
+      "sourcePath": "components/routing/RouteLane.jsx",
+      "props": [
+        {
+          "name": "source",
+          "type": "string"
+        },
+        {
+          "name": "stages",
+          "type": "RouteStage[]"
+        },
+        {
+          "name": "state",
+          "type": "string"
+        },
+        {
+          "name": "action",
+          "type": "React.ReactNode"
+        }
+      ]
+    }
+  ],
+  "startingPoints": [
+    {
+      "name": "helvum",
+      "path": "ui_kits/helvum/index.html",
+      "previewPath": "ui_kits/helvum/index.html",
+      "kind": "screen",
+      "section": "Product screens",
+      "subtitle": "Output-first Studio Console with default-off expert controls",
+      "viewport": "1320x860"
+    }
+  ],
+  "cards": [
+    {
+      "path": "components/core/core.card.html",
+      "group": "Components",
+      "viewport": "700x230",
+      "subtitle": "Buttons, status, and persistent notices",
+      "name": "Actions and feedback"
+    },
+    {
+      "path": "components/mixer/mixer.card.html",
+      "group": "Components",
+      "viewport": "700x460",
+      "subtitle": "Device controls with an ambient real-time spectrum",
+      "name": "Output mixer"
+    },
+    {
+      "path": "components/navigation/navigation.card.html",
+      "group": "Components",
+      "viewport": "700x270",
+      "subtitle": "Stable workspace rail, expert-mode switch, and compact selectors",
+      "name": "Navigation and device defaults"
+    },
+    {
+      "path": "components/overlays/overlays.card.html",
+      "group": "Components",
+      "viewport": "700x360",
+      "subtitle": "Focused creation and contextual connection detail",
+      "name": "Dialog and drawer"
+    },
+    {
+      "path": "components/routing/routing.card.html",
+      "group": "Components",
+      "viewport": "700x470",
+      "subtitle": "Flow lanes, node cards, ports, and connections",
+      "name": "Routing"
+    },
+    {
+      "path": "guidelines/colors.card.html",
+      "group": "Foundations",
+      "viewport": "700x230",
+      "subtitle": "OpenCode surfaces, text, hairlines, and media semantics",
+      "name": "Ink and signal colors"
+    },
+    {
+      "path": "guidelines/targets.card.html",
+      "group": "Foundations",
+      "viewport": "700x220",
+      "subtitle": "32–36px controls, 34px ports, and a 4px base rhythm",
+      "name": "Targets and spacing"
+    },
+    {
+      "path": "guidelines/type.card.html",
+      "group": "Foundations",
+      "viewport": "700x240",
+      "subtitle": "Readable multilingual hierarchy from 11px support text",
+      "name": "Desktop type scale"
+    }
+  ],
+  "globalCssPaths": [
+    "tokens/colors.css",
+    "tokens/type.css",
+    "tokens/layout.css",
+    "components/studio.css",
+    "styles.css"
+  ],
+  "tokens": [
+    {
+      "name": "--hs-surface-canvas",
+      "value": "#fdfcfc",
+      "kind": "color",
+      "definedIn": "tokens/colors.css"
+    },
+    {
+      "name": "--hs-surface-sidebar",
+      "value": "#fdfcfc",
+      "kind": "color",
+      "definedIn": "tokens/colors.css"
+    },
+    {
+      "name": "--hs-surface-base",
+      "value": "#fdfcfc",
+      "kind": "color",
+      "definedIn": "tokens/colors.css"
+    },
+    {
+      "name": "--hs-surface-raised",
+      "value": "#f8f7f7",
+      "kind": "color",
+      "definedIn": "tokens/colors.css"
+    },
+    {
+      "name": "--hs-surface-overlay",
+      "value": "#fdfcfc",
+      "kind": "color",
+      "definedIn": "tokens/colors.css"
+    },
+    {
+      "name": "--hs-surface-hover",
+      "value": "#f1eeee",
+      "kind": "color",
+      "definedIn": "tokens/colors.css"
+    },
+    {
+      "name": "--hs-surface-active",
+      "value": "#f1eeee",
+      "kind": "color",
+      "definedIn": "tokens/colors.css"
+    },
+    {
+      "name": "--hs-text-strong",
+      "value": "#201d1d",
+      "kind": "color",
+      "definedIn": "tokens/colors.css"
+    },
+    {
+      "name": "--hs-text",
+      "value": "#424245",
+      "kind": "color",
+      "definedIn": "tokens/colors.css"
+    },
+    {
+      "name": "--hs-text-muted",
+      "value": "#646262",
+      "kind": "color",
+      "definedIn": "tokens/colors.css"
+    },
+    {
+      "name": "--hs-text-disabled",
+      "value": "#9a9898",
+      "kind": "color",
+      "definedIn": "tokens/colors.css"
+    },
+    {
+      "name": "--hs-border",
+      "value": "rgb(15 0 0 / 12%)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css"
+    },
+    {
+      "name": "--hs-border-strong",
+      "value": "#646262",
+      "kind": "color",
+      "definedIn": "tokens/colors.css"
+    },
+    {
+      "name": "--hs-focus",
+      "value": "#007aff",
+      "kind": "color",
+      "definedIn": "tokens/colors.css"
+    },
+    {
+      "name": "--hs-accent",
+      "value": "#007aff",
+      "kind": "color",
+      "definedIn": "tokens/colors.css"
+    },
+    {
+      "name": "--hs-accent-strong",
+      "value": "#0056b3",
+      "kind": "color",
+      "definedIn": "tokens/colors.css"
+    },
+    {
+      "name": "--hs-accent-soft",
+      "value": "rgb(0 122 255 / 8%)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css"
+    },
+    {
+      "name": "--hs-audio",
+      "value": "#007aff",
+      "kind": "color",
+      "definedIn": "tokens/colors.css"
+    },
+    {
+      "name": "--hs-video",
+      "value": "#995f06",
+      "kind": "color",
+      "definedIn": "tokens/colors.css"
+    },
+    {
+      "name": "--hs-midi",
+      "value": "#a5006a",
+      "kind": "color",
+      "definedIn": "tokens/colors.css"
+    },
+    {
+      "name": "--hs-unknown",
+      "value": "#646262",
+      "kind": "color",
+      "definedIn": "tokens/colors.css"
+    },
+    {
+      "name": "--hs-success",
+      "value": "#30d158",
+      "kind": "color",
+      "definedIn": "tokens/colors.css"
+    },
+    {
+      "name": "--hs-warning",
+      "value": "#ff9f0a",
+      "kind": "color",
+      "definedIn": "tokens/colors.css"
+    },
+    {
+      "name": "--hs-danger",
+      "value": "#ff3b30",
+      "kind": "color",
+      "definedIn": "tokens/colors.css"
+    },
+    {
+      "name": "--hs-danger-soft",
+      "value": "rgb(255 59 48 / 8%)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css"
+    },
+    {
+      "name": "--hs-shadow-color",
+      "value": "transparent",
+      "kind": "color",
+      "definedIn": "tokens/colors.css"
+    },
+    {
+      "name": "--hs-font-sans",
+      "value": "'Berkeley Mono', 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo,\n    Monaco, Consolas, 'Liberation Mono', 'Courier New', 'PingFang SC', 'Noto Sans Mono CJK SC',\n    monospace",
+      "kind": "other",
+      "definedIn": "tokens/type.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--hs-font-mono",
+      "value": "var(--hs-font-sans)",
+      "kind": "other",
+      "definedIn": "tokens/type.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--hs-font-size-xs",
+      "value": "11px",
+      "kind": "spacing",
+      "definedIn": "tokens/type.css"
+    },
+    {
+      "name": "--hs-font-size-sm",
+      "value": "12px",
+      "kind": "spacing",
+      "definedIn": "tokens/type.css"
+    },
+    {
+      "name": "--hs-font-size-body",
+      "value": "13px",
+      "kind": "spacing",
+      "definedIn": "tokens/type.css"
+    },
+    {
+      "name": "--hs-font-size-title",
+      "value": "15px",
+      "kind": "spacing",
+      "definedIn": "tokens/type.css"
+    },
+    {
+      "name": "--hs-font-size-heading",
+      "value": "18px",
+      "kind": "spacing",
+      "definedIn": "tokens/type.css"
+    },
+    {
+      "name": "--hs-font-size-display",
+      "value": "24px",
+      "kind": "spacing",
+      "definedIn": "tokens/type.css"
+    },
+    {
+      "name": "--hs-line-tight",
+      "value": "1.2",
+      "kind": "other",
+      "definedIn": "tokens/type.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--hs-line-body",
+      "value": "1.5",
+      "kind": "other",
+      "definedIn": "tokens/type.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--hs-weight-medium",
+      "value": "500",
+      "kind": "other",
+      "definedIn": "tokens/type.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--hs-weight-semibold",
+      "value": "600",
+      "kind": "other",
+      "definedIn": "tokens/type.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--hs-weight-bold",
+      "value": "700",
+      "kind": "other",
+      "definedIn": "tokens/type.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--hs-space-1",
+      "value": "4px",
+      "kind": "spacing",
+      "definedIn": "tokens/layout.css"
+    },
+    {
+      "name": "--hs-space-2",
+      "value": "8px",
+      "kind": "spacing",
+      "definedIn": "tokens/layout.css"
+    },
+    {
+      "name": "--hs-space-3",
+      "value": "12px",
+      "kind": "spacing",
+      "definedIn": "tokens/layout.css"
+    },
+    {
+      "name": "--hs-space-4",
+      "value": "16px",
+      "kind": "spacing",
+      "definedIn": "tokens/layout.css"
+    },
+    {
+      "name": "--hs-space-5",
+      "value": "20px",
+      "kind": "spacing",
+      "definedIn": "tokens/layout.css"
+    },
+    {
+      "name": "--hs-space-6",
+      "value": "24px",
+      "kind": "spacing",
+      "definedIn": "tokens/layout.css"
+    },
+    {
+      "name": "--hs-space-8",
+      "value": "32px",
+      "kind": "spacing",
+      "definedIn": "tokens/layout.css"
+    },
+    {
+      "name": "--hs-space-10",
+      "value": "40px",
+      "kind": "spacing",
+      "definedIn": "tokens/layout.css"
+    },
+    {
+      "name": "--hs-radius-sm",
+      "value": "4px",
+      "kind": "spacing",
+      "definedIn": "tokens/layout.css"
+    },
+    {
+      "name": "--hs-radius-md",
+      "value": "0",
+      "kind": "radius",
+      "definedIn": "tokens/layout.css",
+      "annotation": "radius"
+    },
+    {
+      "name": "--hs-radius-lg",
+      "value": "0",
+      "kind": "radius",
+      "definedIn": "tokens/layout.css",
+      "annotation": "radius"
+    },
+    {
+      "name": "--hs-shadow-raised",
+      "value": "none",
+      "kind": "shadow",
+      "definedIn": "tokens/layout.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--hs-control-height",
+      "value": "32px",
+      "kind": "spacing",
+      "definedIn": "tokens/layout.css"
+    },
+    {
+      "name": "--hs-control-height-primary",
+      "value": "36px",
+      "kind": "spacing",
+      "definedIn": "tokens/layout.css"
+    },
+    {
+      "name": "--hs-port-target",
+      "value": "34px",
+      "kind": "spacing",
+      "definedIn": "tokens/layout.css"
+    },
+    {
+      "name": "--hs-duration-fast",
+      "value": "120ms",
+      "kind": "other",
+      "definedIn": "tokens/layout.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--hs-duration",
+      "value": "160ms",
+      "kind": "other",
+      "definedIn": "tokens/layout.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--hs-ease",
+      "value": "cubic-bezier(0.2, 0, 0, 1)",
+      "kind": "other",
+      "definedIn": "tokens/layout.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--hs-duration-fast",
+      "value": "0ms",
+      "kind": "other",
+      "definedIn": "tokens/layout.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--hs-duration",
+      "value": "0ms",
+      "kind": "other",
+      "definedIn": "tokens/layout.css",
+      "annotation": "other"
+    }
+  ],
+  "themes": [],
+  "fonts": [],
+  "brandFonts": [],
+  "source": "spa"
+}

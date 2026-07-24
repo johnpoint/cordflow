@@ -1,0 +1,40 @@
+<!-- @dsCard group="Foundations" viewport="700x230" name="Ink and signal colors" subtitle="OpenCode surfaces, text, hairlines, and media semantics" -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="../styles.css">
+    <style>
+      body { padding: 20px; }
+      .surfaces, .signals { display: grid; gap: 10px; }
+      .surfaces { grid-template-columns: repeat(5, 1fr); margin-bottom: 18px; }
+      .signals { grid-template-columns: repeat(4, 1fr); }
+      .swatch { display: grid; align-content: end; min-height: 76px; padding: 10px; border: 1px solid var(--hs-border-strong); border-radius: var(--hs-radius-md); }
+      .swatch span { font-size: var(--hs-font-size-xs); font-weight: var(--hs-weight-semibold); }
+      .canvas { background: var(--hs-surface-canvas); }
+      .base { background: var(--hs-surface-base); }
+      .raised { background: var(--hs-surface-raised); }
+      .overlay { background: var(--hs-surface-overlay); }
+      .hover { background: var(--hs-surface-hover); }
+      .audio { background: var(--hs-audio); color: var(--hs-surface-canvas); }
+      .video { background: var(--hs-video); color: var(--hs-surface-canvas); }
+      .midi { background: var(--hs-midi); color: var(--hs-surface-canvas); }
+      .success { background: var(--hs-success); color: var(--hs-text-strong); }
+    </style>
+  </head>
+  <body>
+    <div class="surfaces">
+      <div class="swatch canvas"><span>Canvas</span></div>
+      <div class="swatch base"><span>Base</span></div>
+      <div class="swatch raised"><span>Raised</span></div>
+      <div class="swatch overlay"><span>Overlay</span></div>
+      <div class="swatch hover"><span>Hover</span></div>
+    </div>
+    <div class="signals">
+      <div class="swatch audio"><span>Audio</span></div>
+      <div class="swatch video"><span>Video</span></div>
+      <div class="swatch midi"><span>MIDI</span></div>
+      <div class="swatch success"><span>Success</span></div>
+    </div>
+  </body>
+</html>

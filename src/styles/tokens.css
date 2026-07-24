@@ -1,0 +1,88 @@
+:root {
+  color-scheme: light;
+
+  /* OpenCode design tokens imported from DESIGN.md. */
+  --oc-ink: #201d1d;
+  --oc-ink-deep: #0f0000;
+  --oc-charcoal: #302c2c;
+  --oc-body: #424245;
+  --oc-mute: #646262;
+  --oc-stone: #6e6e73;
+  --oc-ash: #9a9898;
+  --oc-canvas: #fdfcfc;
+  --oc-surface-soft: #f8f7f7;
+  --oc-surface-card: #f1eeee;
+  --oc-hairline: rgb(15 0 0 / 12%);
+  --oc-hairline-strong: #646262;
+  --oc-accent: #007aff;
+  --oc-accent-hover: #0056b3;
+  --oc-accent-active: #004085;
+  --oc-success: #30d158;
+  --oc-warning: #ff9f0a;
+  --oc-danger: #ff3b30;
+  --oc-font-mono:
+    'Berkeley Mono', 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo,
+    Monaco, Consolas, 'Liberation Mono', 'Courier New', 'PingFang SC', 'Noto Sans Mono CJK SC',
+    monospace;
+
+  /* Product aliases keep component styles semantic while binding them to OpenCode. */
+  --studio-canvas: var(--oc-canvas);
+  --studio-sidebar: var(--oc-canvas);
+  --studio-base: var(--oc-canvas);
+  --studio-raised: var(--oc-surface-soft);
+  --studio-overlay: var(--oc-canvas);
+  --studio-hover: var(--oc-surface-card);
+  --studio-active: var(--oc-surface-card);
+  --studio-text-strong: var(--oc-ink);
+  --studio-text: var(--oc-body);
+  --studio-text-muted: var(--oc-mute);
+  --studio-border: var(--oc-hairline);
+  --studio-border-strong: var(--oc-hairline-strong);
+  --studio-focus: var(--oc-accent);
+  --studio-accent: var(--oc-accent);
+  --studio-accent-strong: var(--oc-accent-hover);
+  --studio-accent-soft: rgb(0 122 255 / 8%);
+  --studio-success: var(--oc-success);
+  --studio-warning: var(--oc-warning);
+  --studio-danger: var(--oc-danger);
+  --studio-danger-soft: rgb(255 59 48 / 8%);
+  --studio-space-1: 4px;
+  --studio-space-2: 8px;
+  --studio-space-3: 12px;
+  --studio-space-4: 16px;
+  --studio-space-5: 20px;
+  --studio-space-6: 24px;
+  --studio-radius-sm: 4px;
+  --studio-radius-md: 0;
+  --studio-radius-lg: 0;
+  --studio-shadow: none;
+  --studio-duration-fast: 120ms;
+  --studio-duration: 160ms;
+  --studio-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  --ink: var(--studio-text);
+  --ink-muted: var(--studio-text-muted);
+  --panel: var(--studio-base);
+  --desk: var(--studio-canvas);
+  --line: var(--studio-border);
+  --line-strong: var(--studio-border-strong);
+  --navy: var(--studio-sidebar);
+  --navy-raised: var(--studio-raised);
+  --blue: var(--studio-accent);
+  --blue-soft: var(--studio-accent-soft);
+  --audio: #007aff;
+  --video: #995f06;
+  --midi: #a5006a;
+  --unknown: var(--studio-text-muted);
+  --green: #187a3f;
+  --amber: #995f06;
+  --red: #a50011;
+  --mono: var(--oc-font-mono);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --studio-duration-fast: 0ms;
+    --studio-duration: 0ms;
+  }
+}

@@ -1,0 +1,32 @@
+[package]
+name = "cordflow"
+version = "0.1.0"
+default-run = "cordflow"
+authors = ["Cordflow contributors"]
+edition = "2021"
+rust-version = "1.94"
+license = "GPL-3.0-only"
+description = "An accessible PipeWire audio router and output mixer"
+repository = "https://github.com/johnpoint/cordflow"
+
+[lib]
+name = "cordflow_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+env_logger = "0.11"
+libc = "0.2"
+libspa = "0.10.0"
+log = "0.4"
+pipewire = "0.10.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2.11.5", features = [] }
+thiserror = "2"
+ts-rs = { version = "12.0.1", features = ["serde-compat"] }
+
+[dev-dependencies]
+pretty_assertions = "1"

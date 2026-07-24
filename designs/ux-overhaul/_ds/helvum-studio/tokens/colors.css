@@ -1,0 +1,29 @@
+:root {
+  color-scheme: light;
+  --hs-surface-canvas: #fdfcfc;
+  --hs-surface-sidebar: #fdfcfc;
+  --hs-surface-base: #fdfcfc;
+  --hs-surface-raised: #f8f7f7;
+  --hs-surface-overlay: #fdfcfc;
+  --hs-surface-hover: #f1eeee;
+  --hs-surface-active: #f1eeee;
+  --hs-text-strong: #201d1d;
+  --hs-text: #424245;
+  --hs-text-muted: #646262;
+  --hs-text-disabled: #9a9898;
+  --hs-border: rgb(15 0 0 / 12%);
+  --hs-border-strong: #646262;
+  --hs-focus: #007aff;
+  --hs-accent: #007aff;
+  --hs-accent-strong: #0056b3;
+  --hs-accent-soft: rgb(0 122 255 / 8%);
+  --hs-audio: #007aff;
+  --hs-video: #995f06;
+  --hs-midi: #a5006a;
+  --hs-unknown: #646262;
+  --hs-success: #30d158;
+  --hs-warning: #ff9f0a;
+  --hs-danger: #ff3b30;
+  --hs-danger-soft: rgb(255 59 48 / 8%);
+  --hs-shadow-color: transparent;
+}

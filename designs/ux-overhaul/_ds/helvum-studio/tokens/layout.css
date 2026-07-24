@@ -1,0 +1,27 @@
+:root {
+  --hs-space-1: 4px;
+  --hs-space-2: 8px;
+  --hs-space-3: 12px;
+  --hs-space-4: 16px;
+  --hs-space-5: 20px;
+  --hs-space-6: 24px;
+  --hs-space-8: 32px;
+  --hs-space-10: 40px;
+  --hs-radius-sm: 4px;
+  --hs-radius-md: 0; /* @kind radius */
+  --hs-radius-lg: 0; /* @kind radius */
+  --hs-shadow-raised: none; /* @kind shadow */
+  --hs-control-height: 32px;
+  --hs-control-height-primary: 36px;
+  --hs-port-target: 34px;
+  --hs-duration-fast: 120ms; /* @kind other */
+  --hs-duration: 160ms; /* @kind other */
+  --hs-ease: cubic-bezier(0.2, 0, 0, 1); /* @kind other */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --hs-duration-fast: 0ms; /* @kind other */
+    --hs-duration: 0ms; /* @kind other */
+  }
+}

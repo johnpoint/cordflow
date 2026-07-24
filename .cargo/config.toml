@@ -1,0 +1,5 @@
+[env]
+# Clang 22 no longer lets bindgen 0.72 evaluate SPA_ID_INVALID's casted macro.
+# Keep the upstream header intact and expose the same value through a tiny shim.
+CPATH = { value = "src-tauri/compat", relative = true }
+BINDGEN_EXTRA_CLANG_ARGS = "-include cordflow_libspa_compat.h -DCORDFLOW_PIPEWIRE_COMPAT=1"
