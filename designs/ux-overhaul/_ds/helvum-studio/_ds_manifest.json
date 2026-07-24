@@ -383,7 +383,7 @@
       "path": "components/mixer/mixer.card.html",
       "group": "Components",
       "viewport": "700x460",
-      "subtitle": "Device controls with an ambient real-time spectrum",
+      "subtitle": "Device controls with one fading spectrum contour",
       "name": "Output mixer"
     },
     {

@@ -721,14 +721,17 @@ input:focus-visible,
   border: 0;
 }
 
-.output-spectrum__band--left {
+.output-spectrum__band--left,
+.output-spectrum__band--right {
   background: var(--studio-accent-strong);
-  opacity: 0.28;
+  opacity: 0.18;
 }
 
-.output-spectrum__band--right {
-  background: var(--studio-accent);
-  opacity: 0.12;
+.output-spectrum__contour-frame .output-spectrum__band {
+  min-height: 0;
+  background: transparent;
+  border-top: 2px solid var(--studio-accent-strong);
+  opacity: 1;
 }
 
 .flow-builder-complete {
@@ -1474,6 +1477,10 @@ button.flow-builder-chip {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .output-spectrum__contour {
+    display: none;
+  }
+
   *,
   *::before,
   *::after {

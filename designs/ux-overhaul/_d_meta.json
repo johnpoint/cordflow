@@ -19,7 +19,7 @@
     "section": "Product screens"
   },
   "createdAt": "2026-07-23T06:18:14.099Z",
-  "updatedAt": "2026-07-24T03:39:44.713Z",
+  "updatedAt": "2026-07-24T09:01:35.422Z",
   "assets": {
     "Direction Exploration": {
       "versions": [
@@ -42,7 +42,7 @@
           "path": "prototype.html",
           "createdAt": "2026-07-23T06:20:30.749Z",
           "status": "needs-review",
-          "subtitle": "Cordflow output mixer with dark/light blue L/R ambient spectrum, device/application volume tabs, and seven-day application memory",
+          "subtitle": "Cordflow output mixer with a deep-blue peak-envelope spectrum contour, device/application volume tabs, and seven-day application memory",
           "viewport": {
             "width": 1320,
             "height": 860

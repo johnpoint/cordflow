@@ -1,4 +1,4 @@
-/* @ds-bundle: {"format":3,"namespace":"HelvumStudio_38c7d4","components":[{"name":"Button","sourcePath":"components/core/Button.jsx"},{"name":"IconButton","sourcePath":"components/core/IconButton.jsx"},{"name":"Notice","sourcePath":"components/core/Notice.jsx"},{"name":"StatusBadge","sourcePath":"components/core/StatusBadge.jsx"},{"name":"SpectrumAnalyzer","sourcePath":"components/mixer/SpectrumAnalyzer.jsx"},{"name":"VolumeControl","sourcePath":"components/mixer/VolumeControl.jsx"},{"name":"DeviceSelector","sourcePath":"components/navigation/DeviceSelector.jsx"},{"name":"ModeSwitch","sourcePath":"components/navigation/ModeSwitch.jsx"},{"name":"WorkspaceNav","sourcePath":"components/navigation/WorkspaceNav.jsx"},{"name":"Dialog","sourcePath":"components/overlays/Dialog.jsx"},{"name":"Drawer","sourcePath":"components/overlays/Drawer.jsx"},{"name":"ConnectionRow","sourcePath":"components/routing/ConnectionRow.jsx"},{"name":"NodeCard","sourcePath":"components/routing/NodeCard.jsx"},{"name":"PortSocket","sourcePath":"components/routing/PortSocket.jsx"},{"name":"RouteLane","sourcePath":"components/routing/RouteLane.jsx"}],"sourceHashes":{"components/core/Button.jsx":"ec904db0338f","components/core/IconButton.jsx":"1c46a14a3771","components/core/Notice.jsx":"8bdb5c970df1","components/core/StatusBadge.jsx":"e96efc3994a8","components/mixer/SpectrumAnalyzer.jsx":"e1d87e3156ed","components/mixer/VolumeControl.jsx":"d6c5d91095a0","components/navigation/DeviceSelector.jsx":"2d8b126fd11d","components/navigation/ModeSwitch.jsx":"939813705bdc","components/navigation/WorkspaceNav.jsx":"b35b24046445","components/overlays/Dialog.jsx":"e76318a3bcd5","components/overlays/Drawer.jsx":"e1da0e9abc5f","components/routing/ConnectionRow.jsx":"55fa8ba583fe","components/routing/NodeCard.jsx":"790f2e4b437c","components/routing/PortSocket.jsx":"64586b60b7c4","components/routing/RouteLane.jsx":"c8014e7ca63c"},"inlinedExternals":[],"unexposedExports":[]} */
+/* @ds-bundle: {"format":3,"namespace":"HelvumStudio_38c7d4","components":[{"name":"Button","sourcePath":"components/core/Button.jsx"},{"name":"IconButton","sourcePath":"components/core/IconButton.jsx"},{"name":"Notice","sourcePath":"components/core/Notice.jsx"},{"name":"StatusBadge","sourcePath":"components/core/StatusBadge.jsx"},{"name":"SpectrumAnalyzer","sourcePath":"components/mixer/SpectrumAnalyzer.jsx"},{"name":"VolumeControl","sourcePath":"components/mixer/VolumeControl.jsx"},{"name":"DeviceSelector","sourcePath":"components/navigation/DeviceSelector.jsx"},{"name":"ModeSwitch","sourcePath":"components/navigation/ModeSwitch.jsx"},{"name":"WorkspaceNav","sourcePath":"components/navigation/WorkspaceNav.jsx"},{"name":"Dialog","sourcePath":"components/overlays/Dialog.jsx"},{"name":"Drawer","sourcePath":"components/overlays/Drawer.jsx"},{"name":"ConnectionRow","sourcePath":"components/routing/ConnectionRow.jsx"},{"name":"NodeCard","sourcePath":"components/routing/NodeCard.jsx"},{"name":"PortSocket","sourcePath":"components/routing/PortSocket.jsx"},{"name":"RouteLane","sourcePath":"components/routing/RouteLane.jsx"}],"sourceHashes":{"components/core/Button.jsx":"ec904db0338f","components/core/IconButton.jsx":"1c46a14a3771","components/core/Notice.jsx":"8bdb5c970df1","components/core/StatusBadge.jsx":"e96efc3994a8","components/mixer/SpectrumAnalyzer.jsx":"65e4e4a59184","components/mixer/VolumeControl.jsx":"d6c5d91095a0","components/navigation/DeviceSelector.jsx":"2d8b126fd11d","components/navigation/ModeSwitch.jsx":"939813705bdc","components/navigation/WorkspaceNav.jsx":"b35b24046445","components/overlays/Dialog.jsx":"e76318a3bcd5","components/overlays/Drawer.jsx":"e1da0e9abc5f","components/routing/ConnectionRow.jsx":"55fa8ba583fe","components/routing/NodeCard.jsx":"790f2e4b437c","components/routing/PortSocket.jsx":"64586b60b7c4","components/routing/RouteLane.jsx":"c8014e7ca63c"},"inlinedExternals":[],"unexposedExports":[]} */
 
 (() => {
 
@@ -87,16 +87,119 @@ function SpectrumAnalyzer({
   rightBands
 }) {
   const minimumDecibels = -72;
+  const contourRiseMomentum = 0.3;
+  const contourReleaseDurationMs = 700;
+  const contourReleaseExponent = 1.5;
+  const contourSettleThreshold = 0.5;
+  const trackedDevice = React.useRef(device);
+  const lastSpectrumSampleAt = React.useRef(null);
+  const contourRef = React.useRef(null);
+  const [contour, setContour] = React.useState(null);
   const visibleBands = bands => {
     const sourceBands = bands ?? [];
     return Array.from({
       length: 32
-    }, (_, index) => sourceBands[index] ?? 0);
+    }, (_, index) => {
+      const amplitude = sourceBands[index];
+      return typeof amplitude === 'number' && Number.isFinite(amplitude) ? amplitude : 0;
+    });
   };
   const bandHeight = amplitude => {
     const decibels = amplitude <= 0 ? minimumDecibels : Math.min(12, Math.max(minimumDecibels, 20 * Math.log10(amplitude)));
     return Math.max(0, Math.min(100, (decibels - minimumDecibels) / 72 * 100));
   };
+  const visibleLeftBands = visibleBands(leftBands);
+  const visibleRightBands = visibleBands(rightBands);
+  React.useEffect(() => {
+    const spectrumAvailable = Boolean(device) && Array.isArray(leftBands) && Array.isArray(rightBands);
+    if (!spectrumAvailable) {
+      trackedDevice.current = device;
+      lastSpectrumSampleAt.current = null;
+      contourRef.current = null;
+      setContour(null);
+      return;
+    }
+    const sampledAt = Date.now();
+    const leftHeights = visibleBands(leftBands).map(bandHeight);
+    const rightHeights = visibleBands(rightBands).map(bandHeight);
+    const nextHeights = {
+      leftHeights,
+      rightHeights,
+      leftSourceHeights: leftHeights,
+      rightSourceHeights: rightHeights,
+      leftReleaseOrigins: leftHeights,
+      rightReleaseOrigins: rightHeights,
+      leftReleaseElapsedMs: Array(32).fill(0),
+      rightReleaseElapsedMs: Array(32).fill(0)
+    };
+    if (trackedDevice.current !== device || contourRef.current === null) {
+      trackedDevice.current = device;
+      lastSpectrumSampleAt.current = sampledAt;
+      contourRef.current = nextHeights;
+      setContour(nextHeights);
+      return;
+    }
+    const elapsedMs = Math.max(0, sampledAt - (lastSpectrumSampleAt.current ?? sampledAt));
+    const follow = (previousHeight, previousSourceHeight, releaseOrigin, releaseElapsedMs, currentHeight) => {
+      const rise = Math.max(0, currentHeight - previousSourceHeight);
+      const inertialRise = Math.min(100, currentHeight + rise * contourRiseMomentum);
+      if (inertialRise > previousHeight) {
+        return {
+          height: inertialRise,
+          origin: inertialRise,
+          elapsedMs: 0
+        };
+      }
+      if (previousHeight - currentHeight <= contourSettleThreshold) {
+        return {
+          height: currentHeight,
+          origin: currentHeight,
+          elapsedMs: 0
+        };
+      }
+      const nextElapsedMs = Math.min(contourReleaseDurationMs, releaseElapsedMs + elapsedMs);
+      const progress = nextElapsedMs / contourReleaseDurationMs;
+      const easedProgress = Math.pow(progress, contourReleaseExponent);
+      const releasedHeight = releaseOrigin + (currentHeight - releaseOrigin) * easedProgress;
+      const height = Math.max(currentHeight, Math.min(previousHeight, releasedHeight));
+      return height - currentHeight <= contourSettleThreshold ? {
+        height: currentHeight,
+        origin: currentHeight,
+        elapsedMs: 0
+      } : {
+        height,
+        origin: releaseOrigin,
+        elapsedMs: nextElapsedMs
+      };
+    };
+    const left = nextHeights.leftHeights.map((height, index) => follow(contourRef.current.leftHeights[index] ?? height, contourRef.current.leftSourceHeights[index] ?? height, contourRef.current.leftReleaseOrigins[index] ?? height, contourRef.current.leftReleaseElapsedMs[index] ?? 0, height));
+    const right = nextHeights.rightHeights.map((height, index) => follow(contourRef.current.rightHeights[index] ?? height, contourRef.current.rightSourceHeights[index] ?? height, contourRef.current.rightReleaseOrigins[index] ?? height, contourRef.current.rightReleaseElapsedMs[index] ?? 0, height));
+    const nextContour = {
+      leftHeights: left.map(({
+        height
+      }) => height),
+      rightHeights: right.map(({
+        height
+      }) => height),
+      leftSourceHeights: nextHeights.leftHeights,
+      rightSourceHeights: nextHeights.rightHeights,
+      leftReleaseOrigins: left.map(({
+        origin
+      }) => origin),
+      rightReleaseOrigins: right.map(({
+        origin
+      }) => origin),
+      leftReleaseElapsedMs: left.map(({
+        elapsedMs
+      }) => elapsedMs),
+      rightReleaseElapsedMs: right.map(({
+        elapsedMs
+      }) => elapsedMs)
+    };
+    lastSpectrumSampleAt.current = sampledAt;
+    contourRef.current = nextContour;
+    setContour(nextContour);
+  }, [device, leftBands, rightBands]);
   return /*#__PURE__*/React.createElement("section", {
     className: "hs-spectrum",
     "aria-label": `Stereo real-time output spectrum for ${device}`
@@ -108,8 +211,30 @@ function SpectrumAnalyzer({
     className: "hs-spectrum__channels",
     "aria-hidden": "true"
   }, /*#__PURE__*/React.createElement("div", {
+    className: "hs-spectrum__contour"
+  }, contour ? /*#__PURE__*/React.createElement("div", {
+    className: "hs-spectrum__contour-frame"
+  }, /*#__PURE__*/React.createElement("div", {
     className: "hs-spectrum__bands hs-spectrum__bands--left"
-  }, visibleBands(leftBands).map((amplitude, index) => /*#__PURE__*/React.createElement("i", {
+  }, contour.leftHeights.map((height, index) => /*#__PURE__*/React.createElement("i", {
+    key: index,
+    className: "hs-spectrum__band hs-spectrum__band--left",
+    style: {
+      height: `${height}%`
+    }
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "hs-spectrum__bands hs-spectrum__bands--right"
+  }, contour.rightHeights.map((height, index) => /*#__PURE__*/React.createElement("i", {
+    key: index,
+    className: "hs-spectrum__band hs-spectrum__band--right",
+    style: {
+      height: `${height}%`
+    }
+  })))) : null), /*#__PURE__*/React.createElement("div", {
+    className: "hs-spectrum__current"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "hs-spectrum__bands hs-spectrum__bands--left"
+  }, visibleLeftBands.map((amplitude, index) => /*#__PURE__*/React.createElement("i", {
     key: index,
     className: "hs-spectrum__band hs-spectrum__band--left",
     style: {
@@ -117,13 +242,13 @@ function SpectrumAnalyzer({
     }
   }))), /*#__PURE__*/React.createElement("div", {
     className: "hs-spectrum__bands hs-spectrum__bands--right"
-  }, visibleBands(rightBands).map((amplitude, index) => /*#__PURE__*/React.createElement("i", {
+  }, visibleRightBands.map((amplitude, index) => /*#__PURE__*/React.createElement("i", {
     key: index,
     className: "hs-spectrum__band hs-spectrum__band--right",
     style: {
       height: `${bandHeight(amplitude)}%`
     }
-  }))))));
+  })))))));
 }
 Object.assign(__ds_scope, { SpectrumAnalyzer });
 })(); } catch (e) { __ds_ns.__errors.push({ path: "components/mixer/SpectrumAnalyzer.jsx", error: String((e && e.message) || e) }); }

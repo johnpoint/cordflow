@@ -465,6 +465,22 @@ select:focus-visible,
   position: absolute;
   inset: 14px 0 0;
 }
+.output-spectrum__contour,
+.output-spectrum__contour-frame,
+.output-spectrum__current {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.output-spectrum__contour {
+  z-index: 2;
+}
+.output-spectrum__current {
+  z-index: 1;
+}
+.output-spectrum__contour-frame {
+  opacity: 0.38;
+}
 .output-spectrum__bands {
   position: absolute;
   inset: 0;

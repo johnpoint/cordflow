@@ -239,6 +239,68 @@ test('adjusts volume and mute for each output device', async ({ page }) => {
     .not.toBe(firstRightSpectrumHeight);
   await expect(page.getByTestId('output-spectrum-left-channel')).toBeVisible();
   await expect(page.getByTestId('output-spectrum-right-channel')).toBeVisible();
+  const spectrumChannelStyles = await Promise.all(
+    [leftSpectrumBand, rightSpectrumBand].map((band) =>
+      band.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+          backgroundColor: style.backgroundColor,
+          opacity: style.opacity,
+        };
+      }),
+    ),
+  );
+  expect(spectrumChannelStyles[0]).toEqual({
+    backgroundColor: 'rgb(0, 86, 179)',
+    opacity: '0.18',
+  });
+  expect(spectrumChannelStyles[1]).toEqual(spectrumChannelStyles[0]);
+  await expect
+    .poll(async () => page.locator('.output-spectrum__contour-frame').count())
+    .toBeGreaterThan(0);
+  expect(await page.locator('.output-spectrum__contour-frame').count()).toBe(1);
+  const contourFrame = page.locator('.output-spectrum__contour-frame');
+  await expect(contourFrame).toHaveCSS('animation-name', 'none');
+  await expect(contourFrame).toHaveCSS('opacity', '0.38');
+  const spectrumLayerOrder = await Promise.all(
+    ['output-spectrum-contour', 'output-spectrum-current'].map((testId) =>
+      page.getByTestId(testId).evaluate((element) => Number(getComputedStyle(element).zIndex)),
+    ),
+  );
+  expect(spectrumLayerOrder[0]).toBeGreaterThan(spectrumLayerOrder[1]);
+  const contourBandStyle = await contourFrame
+    .locator('.output-spectrum__band--left')
+    .first()
+    .evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        backgroundColor: style.backgroundColor,
+        borderTopColor: style.borderTopColor,
+        borderTopWidth: style.borderTopWidth,
+      };
+    });
+  expect(contourBandStyle).toEqual({
+    backgroundColor: 'rgba(0, 0, 0, 0)',
+    borderTopColor: 'rgb(0, 86, 179)',
+    borderTopWidth: '2px',
+  });
+  const contourNeverFallsBelowCurrent = await page
+    .getByTestId('output-spectrum')
+    .evaluate((spectrumElement) => {
+      const contourBands = spectrumElement.querySelectorAll(
+        '.output-spectrum__contour-frame .output-spectrum__band',
+      );
+      const currentBands = spectrumElement.querySelectorAll(
+        '.output-spectrum__current .output-spectrum__band',
+      );
+      return [...contourBands].every(
+        (contourBand, index) =>
+          contourBand.getBoundingClientRect().top <=
+          (currentBands[index]?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY),
+      );
+    });
+  expect(contourNeverFallsBelowCurrent).toBe(true);
+  await expect(page.getByTestId('output-spectrum-contour')).toHaveCSS('pointer-events', 'none');
   const spectrumBox = await spectrum.boundingBox();
   const mixerWorkspaceBox = await page.getByTestId('output-volume-workspace').boundingBox();
   const statusbarBox = await page.getByTestId('app-statusbar').boundingBox();
@@ -253,6 +315,11 @@ test('adjusts volume and mute for each output device', async ({ page }) => {
   expect(spectrumBox!.y + spectrumBox!.height).toBeLessThanOrEqual(statusbarBox!.y + 1);
   await expect(spectrum).toHaveCSS('position', 'absolute');
   await expect(spectrum).toHaveCSS('pointer-events', 'none');
+  expect(
+    await page
+      .getByTestId('output-volume-workspace')
+      .evaluate((element) => Number(getComputedStyle(element).zIndex)),
+  ).toBeGreaterThan(await spectrum.evaluate((element) => Number(getComputedStyle(element).zIndex)));
   await expect(page.locator('.output-volume-overview')).toHaveCount(0);
   await expect(page.getByTestId('connection-panel-toggle')).toHaveCount(0);
   await expect(page.getByTestId('output-volume-device-2')).toContainText('EasyEffects');
@@ -358,6 +425,18 @@ test('adjusts volume and mute for each output device', async ({ page }) => {
   await expect(page.getByTestId('default-playback-control')).toContainText('EasyEffects');
   await expect(page.getByTestId('default-playback-control').getByRole('combobox')).toHaveCount(0);
   await expect(page.getByTestId('output-volume-device-2')).toContainText('Default');
+});
+
+test('shows only the current spectrum frame when reduced motion is requested', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+
+  await expect(page.getByTestId('output-spectrum-current')).toBeVisible();
+  await expect
+    .poll(async () => page.locator('.output-spectrum__contour-frame').count())
+    .toBeGreaterThan(0);
+  await expect(page.getByTestId('output-spectrum-contour')).toHaveCSS('display', 'none');
+  await expect(page.locator('.output-spectrum__contour-frame')).toBeHidden();
 });
 
 test('remembers application volume while its audio stream is inactive', async ({ page }) => {
