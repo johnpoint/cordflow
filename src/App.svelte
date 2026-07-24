@@ -1,44 +1,40 @@
 <script lang="ts">
   import { isTauri } from '@tauri-apps/api/core';
   import { getCurrentWindow } from '@tauri-apps/api/window';
-  import { Plus } from '@lucide/svelte';
-  import { SvelteSet } from 'svelte/reactivity';
   import { onMount } from 'svelte';
+  import { get } from 'svelte/store';
   import {
-    isApplicationAudioNode,
-    readApplicationVolumePreferences,
-    reconcileApplicationVolumes,
-    updateApplicationVolumePreference,
-    writeApplicationVolumePreferences,
-    type ApplicationVolumeItem,
-    type ApplicationVolumePreference,
-  } from './lib/applicationVolume';
-  import { createGraphBridge, type GraphBridge, type Unsubscribe } from './lib/bridge';
+    createGraphSession,
+    type GraphSessionEvent,
+    type GraphSessionOperation,
+  } from './lib/app';
+  import HeaderSettings from './lib/app/HeaderSettings.svelte';
+  import StatusBar from './lib/app/StatusBar.svelte';
+  import WorkspaceSidebar from './lib/app/WorkspaceSidebar.svelte';
+  import {
+    selectActiveDefaultDevice,
+    selectDefaultAudioSinks,
+    selectDefaultAudioSources,
+    selectDisplayedDefaultDevice,
+    selectGraphFocus,
+    selectOutputVolumeNodes,
+  } from './lib/app/selectors';
+  import { createGraphBridge } from './lib/bridge';
   import AudioFlowBuilder from './lib/components/AudioFlowBuilder.svelte';
   import AudioFlowWorkspace from './lib/components/AudioFlowWorkspace.svelte';
   import ConnectionPanel from './lib/components/ConnectionPanel.svelte';
   import OutputSpectrum from './lib/components/OutputSpectrum.svelte';
   import OutputVolumeWorkspace from './lib/components/OutputVolumeWorkspace.svelte';
   import TopologyWorkspace from './lib/components/TopologyWorkspace.svelte';
-  import type {
-    GraphEnvelope,
-    LinkDto,
-    MediaType,
-    OperationFailure,
-    OutputLevel,
-  } from './lib/generated/graph';
+  import type { LinkDto, MediaType } from './lib/generated/graph';
   import { buildAudioFlowModules } from './lib/graph/audioFlow';
   import {
-    connectionExists,
     connectedChain,
     effectiveMediaType,
     expandStereoConnection,
     nodeDisplayName,
-    pendingHasExpired,
     type NormalizedPorts,
-    type PendingLink,
   } from './lib/graph/connection';
-  import { emptyGraphState, reduceEnvelope } from './lib/graph/reducer';
   import {
     detectLocale,
     setDocumentLocale,
@@ -56,73 +52,24 @@
     type WorkspaceId,
   } from './lib/workspace';
 
-  interface PendingRemoval {
-    operationId: string;
-    linkId: number;
-    createdAt: number;
-  }
-
-  interface PendingDefaultAudioSink {
-    operationId: string;
-    nodeId: number;
-    nodeName: string;
-    createdAt: number;
-  }
-
-  interface PendingDefaultAudioSource {
-    operationId: string;
-    nodeId: number;
-    nodeName: string;
-    createdAt: number;
-  }
-
-  interface PendingOutputVolume {
-    operationId: string;
-    nodeId: number;
-    volumePercent: number | null;
-    muted: boolean | null;
-    createdAt: number;
-    silent: boolean;
-  }
-
-  type OutputSpectrumChannels = Pick<OutputLevel, 'leftSpectrum' | 'rightSpectrum'>;
-
   const connectionPanelStorageKey = 'cordflow.connections-expanded';
   const legacyConnectionPanelStorageKey = 'helvum-next.connections-expanded';
   const localeStorageKey = 'cordflow.locale';
   const legacyLocaleStorageKey = 'helvum-next.locale';
-  const bridge: GraphBridge = createGraphBridge();
   const appWindow = isTauri() ? getCurrentWindow() : null;
-  let graph = emptyGraphState();
-  let pendingLinks: PendingLink[] = [];
-  let pendingRemovals: PendingRemoval[] = [];
-  let pendingDefaultAudioSink: PendingDefaultAudioSink | null = null;
-  let pendingDefaultAudioSource: PendingDefaultAudioSource | null = null;
-  let pendingOutputVolumes: PendingOutputVolume[] = [];
-  let queuedOutputVolumes: Record<number, number | undefined> = {};
-  let outputLevels: Record<number, number | undefined> = {};
-  let pendingOutputLevels: Record<number, number | undefined> = {};
-  let outputSpectra: Record<number, OutputSpectrumChannels | undefined> = {};
-  let pendingOutputSpectra: Record<number, OutputSpectrumChannels | undefined> = {};
-  let outputLevelFrame = 0;
-  let applicationVolumePreferences: ApplicationVolumePreference[] =
-    readApplicationVolumePreferences(localStorage);
-  applicationVolumePreferences = writeApplicationVolumePreferences(
-    localStorage,
-    applicationVolumePreferences,
-  );
-  let applicationVolumes: ApplicationVolumeItem[] = reconcileApplicationVolumes(
-    applicationVolumePreferences,
-    [],
-    [],
-  ).applications;
-  const observedApplicationNodeIds = new SvelteSet<number>();
+  const session = createGraphSession({
+    bridge: createGraphBridge(),
+    storage: localStorage,
+    onEvent: handleSessionEvent,
+  });
+  let sessionState = get(session);
+  const unsubscribeSessionState = session.subscribe((state) => (sessionState = state));
+
   let selectedLinkId: number | null = null;
   let selectedNodeId: number | null = null;
   let selectedFlowSourceId: number | null = null;
   let announcement = '';
   let errorNotice = '';
-  let resyncing = false;
   let settingsOpen = false;
   let flowBuilderOpen = false;
   let flowBuilderReturnFocus: HTMLElement | null = null;
@@ -150,6 +97,68 @@
   }
   let locale: Locale = detectLocale(storedLocale, navigator.languages);
 
+  $: graph = sessionState.graph;
+  $: pendingLinks = sessionState.pendingLinks;
+  $: pendingDefaultAudioSink = sessionState.pendingDefaultAudioSink;
+  $: pendingDefaultAudioSource = sessionState.pendingDefaultAudioSource;
+  $: removingLinkIds = new Set(sessionState.pendingRemovals.map((removal) => removal.linkId));
+  $: pendingOutputVolumeNodeIds = new Set(
+    sessionState.pendingOutputVolumes.map((pending) => pending.nodeId),
+  );
+  $: audioFlowModules = buildAudioFlowModules(graph.nodes, graph.ports, graph.links);
+  $: defaultAudioSinks = selectDefaultAudioSinks(graph, t('unnamedNode'), locale);
+  $: activeDefaultAudioSink = selectActiveDefaultDevice(
+    defaultAudioSinks,
+    graph.defaultAudioSinkName,
+  );
+  $: displayedDefaultAudioSinkId = (pendingDefaultAudioSink?.nodeId ??
+    activeDefaultAudioSink?.id ??
+    '') as number | '';
+  $: displayedDefaultAudioSink = selectDisplayedDefaultDevice(
+    defaultAudioSinks,
+    activeDefaultAudioSink,
+    pendingDefaultAudioSink?.nodeId ?? null,
+  );
+  $: defaultAudioSources = selectDefaultAudioSources(graph, t('unnamedNode'), locale);
+  $: activeDefaultAudioSource = selectActiveDefaultDevice(
+    defaultAudioSources,
+    graph.defaultAudioSourceName,
+  );
+  $: displayedDefaultAudioSourceId = (pendingDefaultAudioSource?.nodeId ??
+    activeDefaultAudioSource?.id ??
+    '') as number | '';
+  $: displayedDefaultAudioSource = selectDisplayedDefaultDevice(
+    defaultAudioSources,
+    activeDefaultAudioSource,
+    pendingDefaultAudioSource?.nodeId ?? null,
+  );
+  $: outputVolumeNodes = selectOutputVolumeNodes(graph, t('unnamedNode'), locale);
+  $: graphFocus = selectGraphFocus(graph, audioFlowModules, {
+    selectedLinkId,
+    selectedNodeId,
+    selectedFlowSourceId,
+  });
+  $: focusedLinkIds = graphFocus.focusedLinkIds;
+  $: focusedPortIds = graphFocus.focusedPortIds;
+  $: focusedNodeIds = graphFocus.focusedNodeIds;
+  $: graphFocusActive = graphFocus.active;
+  $: if (
+    selectedFlowSourceId !== null &&
+    !audioFlowModules.some((module) => module.source.id === selectedFlowSourceId)
+  ) {
+    selectedFlowSourceId = null;
+  }
+  $: if (selectedLinkId !== null && !graph.links.some((link) => link.id === selectedLinkId)) {
+    selectedLinkId = null;
+  }
+  $: if (selectedNodeId !== null && !graph.nodes.some((node) => node.id === selectedNodeId)) {
+    selectedNodeId = null;
+  }
+
+  function t(key: MessageKey, values: Record<string, string | number> = {}): string {
+    return translate(locale, key, values);
+  }
+
   function minimizeAppWindow(): void {
     void appWindow?.minimize();
   }
@@ -162,121 +171,133 @@
     void appWindow?.close();
   }
 
-  $: removingLinkIds = new Set(pendingRemovals.map((removal) => removal.linkId));
-  $: audioFlowModules = buildAudioFlowModules(graph.nodes, graph.ports, graph.links);
-  $: defaultAudioSinks = graph.nodes
-    .filter(
-      (node) =>
-        node.objectName &&
-        graph.ports.some(
-          (port) =>
-            port.nodeId === node.id && port.direction === 'input' && port.mediaType === 'audio',
-        ),
-    )
-    .sort((left, right) =>
-      nodeDisplayName(left, t('unnamedNode')).localeCompare(
-        nodeDisplayName(right, t('unnamedNode')),
-        locale,
-      ),
-    );
-  $: activeDefaultAudioSink =
-    defaultAudioSinks.find((node) => node.objectName === graph.defaultAudioSinkName) ?? null;
-  $: displayedDefaultAudioSinkId =
-    pendingDefaultAudioSink?.nodeId ?? activeDefaultAudioSink?.id ?? '';
-  $: displayedDefaultAudioSink =
-    defaultAudioSinks.find((node) => node.id === displayedDefaultAudioSinkId) ??
-    activeDefaultAudioSink;
-  $: defaultAudioSources = graph.nodes
-    .filter(
-      (node) =>
-        node.objectName &&
-        (node.mediaClass === 'Audio/Source' || node.mediaClass?.startsWith('Audio/Source/')) &&
-        graph.ports.some(
-          (port) =>
-            port.nodeId === node.id && port.direction === 'output' && port.mediaType === 'audio',
-        ),
-    )
-    .sort((left, right) =>
-      nodeDisplayName(left, t('unnamedNode')).localeCompare(
-        nodeDisplayName(right, t('unnamedNode')),
-        locale,
-      ),
-    );
-  $: activeDefaultAudioSource =
-    defaultAudioSources.find((node) => node.objectName === graph.defaultAudioSourceName) ?? null;
-  $: displayedDefaultAudioSourceId =
-    pendingDefaultAudioSource?.nodeId ?? activeDefaultAudioSource?.id ?? '';
-  $: displayedDefaultAudioSource =
-    defaultAudioSources.find((node) => node.id === displayedDefaultAudioSourceId) ??
-    activeDefaultAudioSource;
-  $: outputVolumeNodes = graph.nodes
-    .filter(
-      (node) =>
-        node.objectName &&
-        (node.mediaClass === 'Audio/Sink' || node.mediaClass?.startsWith('Audio/Sink/')) &&
-        graph.ports.some(
-          (port) =>
-            port.nodeId === node.id && port.direction === 'input' && port.mediaType === 'audio',
-        ),
-    )
-    .sort((left, right) =>
-      nodeDisplayName(left, t('unnamedNode')).localeCompare(
-        nodeDisplayName(right, t('unnamedNode')),
-        locale,
-      ),
-    );
-  $: pendingOutputVolumeNodeIds = new Set(pendingOutputVolumes.map((pending) => pending.nodeId));
-  $: selectedFlow =
-    audioFlowModules.find((module) => module.source.id === selectedFlowSourceId) ?? null;
-  $: selectedLink = graph.links.find((link) => link.id === selectedLinkId) ?? null;
-  $: selectedChain =
-    selectedNodeId === null
-      ? {
-          nodeIds: new Set<number>(),
-          portIds: new Set<number>(),
-          linkIds: new Set<number>(),
-        }
-      : connectedChain(selectedNodeId, graph.ports, graph.links);
-  $: selectedLinkPortIds = new Set(
-    selectedLink ? [selectedLink.outputPortId, selectedLink.inputPortId] : [],
-  );
-  $: selectedLinkNodeIds = new Set(
-    graph.ports.filter((port) => selectedLinkPortIds.has(port.id)).map((port) => port.nodeId),
-  );
-  $: focusedLinkIds = selectedFlow
-    ? selectedFlow.linkIds
-    : selectedNodeId === null
-      ? new Set(selectedLink ? [selectedLink.id] : [])
-      : selectedChain.linkIds;
-  $: focusedPortIds = selectedFlow
-    ? selectedFlow.portIds
-    : selectedNodeId === null
-      ? selectedLinkPortIds
-      : selectedChain.portIds;
-  $: focusedNodeIds = selectedFlow
-    ? selectedFlow.nodeIds
-    : selectedNodeId === null
-      ? selectedLinkNodeIds
-      : selectedChain.nodeIds;
-  $: graphFocusActive = selectedFlow !== null || selectedNodeId !== null || selectedLink !== null;
-  $: if (
-    selectedFlowSourceId !== null &&
-    !audioFlowModules.some((module) => module.source.id === selectedFlowSourceId)
-  ) {
-    selectedFlowSourceId = null;
-  }
-
-  function t(key: MessageKey, values: Record<string, string | number> = {}): string {
-    return translate(locale, key, values);
-  }
-
-  function operationId(prefix: string): string {
-    return `${prefix}-${crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`}`;
-  }
-
   function announce(message: string): void {
     announcement = '';
     requestAnimationFrame(() => (announcement = message));
+  }
+
+  function showError(message: string): void {
+    errorNotice = message;
+  }
+
+  function handleSessionEvent(event: GraphSessionEvent): void {
+    switch (event.type) {
+      case 'graph-gap':
+        showError(t('graphGap'));
+        break;
+      case 'graph-read-failed':
+        showError(t('graphReadFailed', { message: event.message }));
+        break;
+      case 'resync-started':
+        announce(t('resyncing'));
+        break;
+      case 'resync-completed':
+        announce(t('resynced'));
+        break;
+      case 'generation-changed':
+        clearGraphSelection();
+        break;
+      case 'backend-reconnected':
+        announce(t('backendReconnected'));
+        break;
+      case 'backend-unavailable':
+        announce(t('backendUnavailable'));
+        break;
+      case 'link-requested':
+        announce(t('linkRequested'));
+        break;
+      case 'link-created':
+        announce(t('linkCreated'));
+        break;
+      case 'link-removed':
+        if (selectedLinkId === event.linkId) selectedLinkId = null;
+        announce(t('linkRemoved'));
+        break;
+      case 'default-audio-sink-requested':
+        announce(
+          t('defaultPlaybackRequested', {
+            name: nodeDisplayName(event.node, t('unnamedNode')),
+          }),
+        );
+        break;
+      case 'default-audio-source-requested':
+        announce(
+          t('defaultInputRequested', {
+            name: nodeDisplayName(event.node, t('unnamedNode')),
+          }),
+        );
+        break;
+      case 'default-audio-sink-changed':
+        announce(
+          event.node
+            ? t('defaultPlaybackChanged', {
+                name: nodeDisplayName(event.node, t('unnamedNode')),
+              })
+            : t('defaultPlaybackUpdated'),
+        );
+        break;
+      case 'default-audio-source-changed':
+        announce(
+          event.node
+            ? t('defaultInputChanged', {
+                name: nodeDisplayName(event.node, t('unnamedNode')),
+              })
+            : t('defaultInputUpdated'),
+        );
+        break;
+      case 'output-volume-requested':
+        announce(
+          t('outputVolumeRequested', {
+            name: nodeDisplayName(event.node, t('unnamedNode')),
+          }),
+        );
+        break;
+      case 'output-volume-changed':
+        announce(
+          t('outputVolumeChanged', {
+            name: nodeDisplayName(event.node, t('unnamedNode')),
+          }),
+        );
+        break;
+      case 'application-volume-remembered':
+        announce(t('applicationVolumeRemembered', { name: event.name }));
+        break;
+      case 'operation-failed':
+        showError(t(operationFailureKey(event.operation), { message: event.message }));
+        break;
+      case 'confirmation-timeout':
+        showError(t(operationTimeoutKey(event.operation)));
+        break;
+    }
+  }
+
+  function operationFailureKey(operation: GraphSessionOperation): MessageKey {
+    switch (operation) {
+      case 'create-link':
+        return 'createFailed';
+      case 'remove-link':
+        return 'removeFailed';
+      case 'default-audio-sink':
+        return 'defaultPlaybackFailed';
+      case 'default-audio-source':
+        return 'defaultInputFailed';
+      case 'output-volume':
+        return 'outputVolumeFailed';
+    }
+  }
+
+  function operationTimeoutKey(operation: GraphSessionOperation): MessageKey {
+    switch (operation) {
+      case 'default-audio-sink':
+        return 'defaultPlaybackTimeout';
+      case 'default-audio-source':
+        return 'defaultInputTimeout';
+      case 'output-volume':
+        return 'outputVolumeTimeout';
+      case 'create-link':
+      case 'remove-link':
+        return 'confirmationTimeout';
+    }
   }
 
   function selectLink(linkId: number | null): void {
@@ -328,7 +349,7 @@
     workspaceView = view;
     localStorage.setItem(workspaceStorageKey, view);
     clearGraphSelection();
-    syncOutputMetering(view === 'mixer');
+    session.setOutputMetering(view === 'mixer');
   }
 
   function openFlowBuilder(trigger: HTMLElement): void {
@@ -341,103 +362,6 @@
     const returnFocus = flowBuilderReturnFocus;
     flowBuilderReturnFocus = null;
     requestAnimationFrame(() => returnFocus?.focus());
-  }
-
-  function onOutputLevel(level: OutputLevel): void {
-    pendingOutputLevels[level.nodeId] = level.peak;
-    pendingOutputSpectra[level.nodeId] = {
-      leftSpectrum: level.leftSpectrum,
-      rightSpectrum: level.rightSpectrum,
-    };
-    if (outputLevelFrame !== 0) return;
-    outputLevelFrame = requestAnimationFrame(() => {
-      outputLevels = { ...outputLevels, ...pendingOutputLevels };
-      outputSpectra = { ...outputSpectra, ...pendingOutputSpectra };
-      pendingOutputLevels = {};
-      pendingOutputSpectra = {};
-      outputLevelFrame = 0;
-    });
-  }
-
-  function syncOutputMetering(enabled: boolean): void {
-    void bridge.setOutputMetering(enabled).catch((error) => {
-      console.warn('Could not update PipeWire output metering state', error);
-    });
-  }
-
-  function reconcileApplicationVolumeState(now = Date.now()): void {
-    const reconciliation = reconcileApplicationVolumes(
-      applicationVolumePreferences,
-      graph.nodes,
-      graph.ports,
-      now,
-    );
-    applicationVolumePreferences = writeApplicationVolumePreferences(
-      localStorage,
-      reconciliation.preferences,
-      now,
-    );
-    applicationVolumes = reconciliation.applications;
-
-    const currentNodeIds = new Set(graph.nodes.map((node) => node.id));
-    for (const nodeId of observedApplicationNodeIds) {
-      if (!currentNodeIds.has(nodeId)) observedApplicationNodeIds.delete(nodeId);
-    }
-
-    for (const application of applicationVolumes) {
-      for (const nodeId of application.nodeIds) {
-        if (
-          reconciliation.rememberedNodeIds.includes(nodeId) &&
-          !observedApplicationNodeIds.has(nodeId)
-        ) {
-          const node = graph.nodes.find((candidate) => candidate.id === nodeId);
-          if (
-            node &&
-            (node.volumePercent !== application.volumePercent || node.muted !== application.muted)
-          ) {
-            queueMicrotask(() => {
-              void setOutputVolume(
-                nodeId,
-                {
-                  volumePercent: application.volumePercent,
-                  muted: application.muted,
-                },
-                true,
-              );
-            });
-          }
-        }
-        observedApplicationNodeIds.add(nodeId);
-      }
-    }
-  }
-
-  function setApplicationVolume(
-    applicationId: string,
-    update: { volumePercent?: number; muted?: boolean },
-  ): void {
-    const now = Date.now();
-    applicationVolumePreferences = writeApplicationVolumePreferences(
-      localStorage,
-      updateApplicationVolumePreference(applicationVolumePreferences, applicationId, update, now),
-      now,
-    );
-    const reconciliation = reconcileApplicationVolumes(
-      applicationVolumePreferences,
-      graph.nodes,
-      graph.ports,
-      now,
-    );
-    applicationVolumePreferences = reconciliation.preferences;
-    applicationVolumes = reconciliation.applications;
-    const application = applicationVolumes.find((candidate) => candidate.id === applicationId);
-    if (!application) return;
-    for (const nodeId of application.nodeIds) {
-      void setOutputVolume(nodeId, update);
-    }
-    if (!application.active) {
-      announce(t('applicationVolumeRemembered', { name: application.name }));
-    }
   }
 
   function changeAdvancedMode(event: Event): void {
@@ -454,256 +378,6 @@
     selectedFlowSourceId = null;
   }
 
-  function onEnvelope(envelope: GraphEnvelope): void {
-    const previousGeneration = graph.generation;
-    const previousStatus = graph.status.state;
-    const previousDefaultAudioSinkName = graph.defaultAudioSinkName;
-    const previousDefaultAudioSourceName = graph.defaultAudioSourceName;
-    const previousLinkIds = new Set(graph.links.map((link) => link.id));
-    const result = reduceEnvelope(graph, envelope);
-    if (result.needsResync) {
-      showError(t('graphGap'));
-      void resyncGraph(false);
-      return;
-    }
-    if (!result.applied) return;
-    graph = result.state;
-    pendingLinks = pendingLinks.filter(
-      (pending) =>
-        !graph.links.some(
-          (link) =>
-            link.outputPortId === pending.outputPortId && link.inputPortId === pending.inputPortId,
-        ),
-    );
-    pendingRemovals = pendingRemovals.filter((pending) =>
-      graph.links.some((link) => link.id === pending.linkId),
-    );
-    if (selectedLinkId !== null && !graph.links.some((link) => link.id === selectedLinkId)) {
-      selectedLinkId = null;
-    }
-    if (selectedNodeId !== null && !graph.nodes.some((node) => node.id === selectedNodeId)) {
-      selectedNodeId = null;
-    }
-    if (
-      selectedFlowSourceId !== null &&
-      !graph.nodes.some((node) => node.id === selectedFlowSourceId)
-    ) {
-      selectedFlowSourceId = null;
-    }
-
-    if (graph.generation !== previousGeneration) {
-      pendingLinks = pendingLinks.filter((link) => link.generation === graph.generation);
-      pendingRemovals = [];
-      pendingDefaultAudioSink = null;
-      pendingDefaultAudioSource = null;
-      pendingOutputVolumes = [];
-      queuedOutputVolumes = {};
-      outputLevels = {};
-      pendingOutputLevels = {};
-      outputSpectra = {};
-      pendingOutputSpectra = {};
-      selectedLinkId = null;
-      selectedNodeId = null;
-      selectedFlowSourceId = null;
-      observedApplicationNodeIds.clear();
-    }
-    reconcileApplicationVolumeState();
-    if (result.operationFailure) handleOperationFailure(result.operationFailure);
-
-    if (envelope.payload.type === 'delta' && envelope.payload.data.type === 'linkAdded') {
-      const link = envelope.payload.data.data;
-      const matching = pendingLinks.some(
-        (pending) =>
-          pending.outputPortId === link.outputPortId && pending.inputPortId === link.inputPortId,
-      );
-      pendingLinks = pendingLinks.filter(
-        (pending) =>
-          pending.outputPortId !== link.outputPortId || pending.inputPortId !== link.inputPortId,
-      );
-      if (matching || !previousLinkIds.has(link.id)) announce(t('linkCreated'));
-    }
-
-    if (envelope.payload.type === 'delta' && envelope.payload.data.type === 'linkRemoved') {
-      const removedId = envelope.payload.data.data.id;
-      pendingRemovals = pendingRemovals.filter((removal) => removal.linkId !== removedId);
-      if (selectedLinkId === removedId) selectedLinkId = null;
-      announce(t('linkRemoved'));
-    }
-
-    if (envelope.payload.type === 'delta' && envelope.payload.data.type === 'nodeUpdated') {
-      const node = envelope.payload.data.data;
-      const confirmed = pendingOutputVolumes.filter(
-        (pending) =>
-          pending.nodeId === node.id &&
-          (pending.volumePercent === null || pending.volumePercent === node.volumePercent) &&
-          (pending.muted === null || pending.muted === node.muted),
-      );
-      if (confirmed.length > 0) {
-        pendingOutputVolumes = pendingOutputVolumes.filter(
-          (pending) => !confirmed.includes(pending),
-        );
-        if (confirmed.some((pending) => pending.muted !== null)) {
-          if (confirmed.some((pending) => !pending.silent)) {
-            announce(
-              t('outputVolumeChanged', {
-                name: nodeDisplayName(node, t('unnamedNode')),
-              }),
-            );
-          }
-        }
-        if (!pendingOutputVolumes.some((pending) => pending.nodeId === node.id)) {
-          const queuedVolume = queuedOutputVolumes[node.id];
-          if (queuedVolume !== undefined) {
-            clearQueuedOutputVolume(node.id);
-            if (queuedVolume !== node.volumePercent) {
-              void setOutputVolume(node.id, { volumePercent: queuedVolume });
-            }
-          }
-        }
-      }
-    }
-
-    if (
-      envelope.payload.type === 'delta' &&
-      envelope.payload.data.type === 'defaultAudioSinkChanged' &&
-      graph.defaultAudioSinkName !== previousDefaultAudioSinkName
-    ) {
-      const defaultNode = graph.nodes.find(
-        (node) => node.objectName === graph.defaultAudioSinkName,
-      );
-      if (pendingDefaultAudioSink?.nodeName === graph.defaultAudioSinkName) {
-        pendingDefaultAudioSink = null;
-      }
-      announce(
-        defaultNode
-          ? t('defaultPlaybackChanged', {
-              name: nodeDisplayName(defaultNode, t('unnamedNode')),
-            })
-          : t('defaultPlaybackUpdated'),
-      );
-    }
-
-    if (
-      envelope.payload.type === 'delta' &&
-      envelope.payload.data.type === 'defaultAudioSourceChanged' &&
-      graph.defaultAudioSourceName !== previousDefaultAudioSourceName
-    ) {
-      const defaultNode = graph.nodes.find(
-        (node) => node.objectName === graph.defaultAudioSourceName,
-      );
-      if (pendingDefaultAudioSource?.nodeName === graph.defaultAudioSourceName) {
-        pendingDefaultAudioSource = null;
-      }
-      announce(
-        defaultNode
-          ? t('defaultInputChanged', {
-              name: nodeDisplayName(defaultNode, t('unnamedNode')),
-            })
-          : t('defaultInputUpdated'),
-      );
-    }
-
-    if (
-      previousGeneration >= 0 &&
-      previousStatus !== 'connected' &&
-      graph.status.state === 'connected'
-    ) {
-      announce(t('backendReconnected'));
-    } else if (graph.status.state === 'disconnected') {
-      announce(t('backendUnavailable'));
-    }
-  }
-
-  function handleOperationFailure(failure: OperationFailure): void {
-    const isCreation = pendingLinks.some((pending) => pending.operationId === failure.operationId);
-    const isRemoval = pendingRemovals.some(
-      (pending) => pending.operationId === failure.operationId,
-    );
-    const isDefaultAudioSink = pendingDefaultAudioSink?.operationId === failure.operationId;
-    const isDefaultAudioSource = pendingDefaultAudioSource?.operationId === failure.operationId;
-    const failedOutputVolume = pendingOutputVolumes.find(
-      (pending) => pending.operationId === failure.operationId,
-    );
-    const isOutputVolume = failedOutputVolume !== undefined;
-    if (
-      !isCreation &&
-      !isRemoval &&
-      !isDefaultAudioSink &&
-      !isDefaultAudioSource &&
-      !isOutputVolume
-    ) {
-      return;
-    }
-    pendingLinks = pendingLinks.filter((pending) => pending.operationId !== failure.operationId);
-    pendingRemovals = pendingRemovals.filter(
-      (pending) => pending.operationId !== failure.operationId,
-    );
-    if (isDefaultAudioSink) pendingDefaultAudioSink = null;
-    if (isDefaultAudioSource) pendingDefaultAudioSource = null;
-    if (isOutputVolume) {
-      pendingOutputVolumes = pendingOutputVolumes.filter(
-        (pending) => pending.operationId !== failure.operationId,
-      );
-      clearQueuedOutputVolume(failedOutputVolume.nodeId);
-    }
-    const messageKey = isOutputVolume
-      ? 'outputVolumeFailed'
-      : isDefaultAudioSource
-        ? 'defaultInputFailed'
-        : isDefaultAudioSink
-          ? 'defaultPlaybackFailed'
-          : isRemoval
-            ? 'removeFailed'
-            : 'createFailed';
-    showError(t(messageKey, { message: failure.message }));
-  }
-
-  function showError(message: string): void {
-    errorNotice = message;
-  }
-
-  async function resyncGraph(announceProgress = true): Promise<void> {
-    if (resyncing) return;
-    resyncing = true;
-    if (announceProgress) announce(t('resyncing'));
-    try {
-      onEnvelope(await bridge.getGraphSnapshot());
-      if (announceProgress) announce(t('resynced'));
-    } catch (error) {
-      showError(t('graphReadFailed', { message: errorMessage(error) }));
-    } finally {
-      resyncing = false;
-    }
-  }
-
-  async function createLink(ports: NormalizedPorts): Promise<void> {
-    if (connectionExists(graph.links, pendingLinks, ports.output.id, ports.input.id)) {
-      return;
-    }
-    const pending: PendingLink = {
-      operationId: operationId('create'),
-      generation: graph.generation,
-      outputPortId: ports.output.id,
-      inputPortId: ports.input.id,
-      createdAt: Date.now(),
-    };
-    pendingLinks = [...pendingLinks, pending];
-    announce(t('linkRequested'));
-    try {
-      await bridge.createLink({
-        operationId: pending.operationId,
-        generation: pending.generation,
-        outputPortId: pending.outputPortId,
-        inputPortId: pending.inputPortId,
-      });
-    } catch (error) {
-      pendingLinks = pendingLinks.filter(
-        (candidate) => candidate.operationId !== pending.operationId,
-      );
-      showError(t('createFailed', { message: errorMessage(error) }));
-    }
-  }
-
   function createLinks(connections: NormalizedPorts[]): void {
     const unique = connections.filter(
       (connection, index) =>
@@ -713,7 +387,7 @@
             candidate.input.id === connection.input.id,
         ) === index,
     );
-    for (const connection of unique) void createLink(connection);
+    for (const connection of unique) void session.createLink(connection);
   }
 
   function removeLink(linkId: number, policy: RoutingPolicy = 'manual-port'): void {
@@ -724,7 +398,7 @@
     const removalIds = linkIds
       .flatMap((linkId) => linkedRemovalIds(linkId, policy))
       .filter((linkId, index, candidates) => candidates.indexOf(linkId) === index);
-    for (const linkId of removalIds) void removeSingleLink(linkId);
+    for (const linkId of removalIds) void session.removeLink(linkId);
   }
 
   function linkedRemovalIds(linkId: number, policy: RoutingPolicy): number[] {
@@ -751,28 +425,6 @@
       .filter((candidate): candidate is LinkDto => candidate !== undefined)
       .map((candidate) => candidate.id);
     return pairIds.length === 2 ? pairIds : [linkId];
-  }
-
-  async function removeSingleLink(linkId: number): Promise<void> {
-    if (pendingRemovals.some((removal) => removal.linkId === linkId)) return;
-    const pending: PendingRemoval = {
-      operationId: operationId('remove'),
-      linkId,
-      createdAt: Date.now(),
-    };
-    pendingRemovals = [...pendingRemovals, pending];
-    try {
-      await bridge.removeLink({
-        operationId: pending.operationId,
-        generation: graph.generation,
-        linkId,
-      });
-    } catch (error) {
-      pendingRemovals = pendingRemovals.filter(
-        (candidate) => candidate.operationId !== pending.operationId,
-      );
-      showError(t('removeFailed', { message: errorMessage(error) }));
-    }
   }
 
   function describeLink(
@@ -810,197 +462,11 @@
   }
 
   function changeDefaultAudioSink(event: Event): void {
-    const nodeId = Number((event.currentTarget as HTMLSelectElement).value);
-    void setDefaultAudioSink(nodeId);
+    void session.setDefaultAudioSink(Number((event.currentTarget as HTMLSelectElement).value));
   }
 
-  async function setDefaultAudioSink(nodeId: number): Promise<void> {
-    const node = defaultAudioSinks.find((candidate) => candidate.id === nodeId);
-    if (!node?.objectName || node.objectName === graph.defaultAudioSinkName) return;
-
-    const pending: PendingDefaultAudioSink = {
-      operationId: operationId('default-sink'),
-      nodeId: node.id,
-      nodeName: node.objectName,
-      createdAt: Date.now(),
-    };
-    pendingDefaultAudioSink = pending;
-    announce(t('defaultPlaybackRequested', { name: nodeDisplayName(node, t('unnamedNode')) }));
-    try {
-      await bridge.setDefaultAudioSink({
-        operationId: pending.operationId,
-        generation: graph.generation,
-        nodeId: pending.nodeId,
-      });
-    } catch (error) {
-      if (pendingDefaultAudioSink?.operationId === pending.operationId) {
-        pendingDefaultAudioSink = null;
-        showError(t('defaultPlaybackFailed', { message: errorMessage(error) }));
-      }
-    }
-  }
-
-  async function changeDefaultAudioSource(event: Event): Promise<void> {
-    const nodeId = Number((event.currentTarget as HTMLSelectElement).value);
-    const node = defaultAudioSources.find((candidate) => candidate.id === nodeId);
-    if (!node?.objectName || node.objectName === graph.defaultAudioSourceName) return;
-
-    const pending: PendingDefaultAudioSource = {
-      operationId: operationId('default-source'),
-      nodeId: node.id,
-      nodeName: node.objectName,
-      createdAt: Date.now(),
-    };
-    pendingDefaultAudioSource = pending;
-    announce(t('defaultInputRequested', { name: nodeDisplayName(node, t('unnamedNode')) }));
-    try {
-      await bridge.setDefaultAudioSource({
-        operationId: pending.operationId,
-        generation: graph.generation,
-        nodeId: pending.nodeId,
-      });
-    } catch (error) {
-      if (pendingDefaultAudioSource?.operationId === pending.operationId) {
-        pendingDefaultAudioSource = null;
-        showError(t('defaultInputFailed', { message: errorMessage(error) }));
-      }
-    }
-  }
-
-  async function setOutputVolume(
-    nodeId: number,
-    update: { volumePercent?: number; muted?: boolean },
-    silent = false,
-  ): Promise<void> {
-    const node = graph.nodes.find((candidate) => candidate.id === nodeId);
-    const isAudioSink =
-      node &&
-      (node.mediaClass === 'Audio/Sink' || node.mediaClass?.startsWith('Audio/Sink/')) &&
-      graph.ports.some(
-        (port) =>
-          port.nodeId === node.id && port.direction === 'input' && port.mediaType === 'audio',
-      );
-    const isApplicationOutput =
-      node &&
-      isApplicationAudioNode(node) &&
-      graph.ports.some(
-        (port) =>
-          port.nodeId === node.id && port.direction === 'output' && port.mediaType === 'audio',
-      );
-    if (!node || (!isAudioSink && !isApplicationOutput)) return;
-    const activeRequest = pendingOutputVolumes.find((pending) => pending.nodeId === nodeId);
-    if (activeRequest) {
-      if (update.volumePercent !== undefined) {
-        if (update.volumePercent !== activeRequest.volumePercent) {
-          queuedOutputVolumes = {
-            ...queuedOutputVolumes,
-            [nodeId]: update.volumePercent,
-          };
-        } else if (queuedOutputVolumes[nodeId] !== undefined) {
-          clearQueuedOutputVolume(nodeId);
-        }
-      }
-      return;
-    }
-    if (
-      update.volumePercent !== undefined &&
-      update.muted === undefined &&
-      update.volumePercent === node.volumePercent
-    ) {
-      return;
-    }
-    const pending: PendingOutputVolume = {
-      operationId: operationId('output-volume'),
-      nodeId,
-      volumePercent: update.volumePercent ?? null,
-      muted: update.muted ?? null,
-      createdAt: Date.now(),
-      silent,
-    };
-    pendingOutputVolumes = [...pendingOutputVolumes, pending];
-    if (update.muted !== undefined && !silent) {
-      announce(
-        t('outputVolumeRequested', {
-          name: nodeDisplayName(node, t('unnamedNode')),
-        }),
-      );
-    }
-    try {
-      await bridge.setOutputVolume({
-        operationId: pending.operationId,
-        generation: graph.generation,
-        nodeId,
-        volumePercent: pending.volumePercent,
-        muted: pending.muted,
-      });
-    } catch (error) {
-      if (pendingOutputVolumes.some((candidate) => candidate.operationId === pending.operationId)) {
-        pendingOutputVolumes = pendingOutputVolumes.filter(
-          (candidate) => candidate.operationId !== pending.operationId,
-        );
-        clearQueuedOutputVolume(nodeId);
-        showError(t('outputVolumeFailed', { message: errorMessage(error) }));
-      }
-    }
-  }
-
-  function clearQueuedOutputVolume(nodeId: number): void {
-    if (queuedOutputVolumes[nodeId] === undefined) return;
-    const nextQueue = { ...queuedOutputVolumes };
-    delete nextQueue[nodeId];
-    queuedOutputVolumes = nextQueue;
-  }
-
-  function errorMessage(error: unknown): string {
-    if (typeof error === 'object' && error && 'message' in error) return String(error.message);
-    return String(error);
-  }
-
-  function checkPendingTimeouts(): void {
-    const now = Date.now();
-    const expiredLinks = pendingLinks.filter((pending) => pendingHasExpired(pending, now));
-    const expiredRemovals = pendingRemovals.filter((pending) => now - pending.createdAt >= 5_000);
-    const defaultAudioSinkExpired =
-      pendingDefaultAudioSink !== null && now - pendingDefaultAudioSink.createdAt >= 5_000;
-    const defaultAudioSourceExpired =
-      pendingDefaultAudioSource !== null && now - pendingDefaultAudioSource.createdAt >= 5_000;
-    const expiredOutputVolumes = pendingOutputVolumes.filter(
-      (pending) => now - pending.createdAt >= 5_000,
-    );
-    if (
-      expiredLinks.length === 0 &&
-      expiredRemovals.length === 0 &&
-      !defaultAudioSinkExpired &&
-      !defaultAudioSourceExpired &&
-      expiredOutputVolumes.length === 0
-    ) {
-      return;
-    }
-    pendingLinks = pendingLinks.filter((pending) => !expiredLinks.includes(pending));
-    pendingRemovals = pendingRemovals.filter((pending) => !expiredRemovals.includes(pending));
-    if (defaultAudioSinkExpired) pendingDefaultAudioSink = null;
-    if (defaultAudioSourceExpired) pendingDefaultAudioSource = null;
-    pendingOutputVolumes = pendingOutputVolumes.filter(
-      (pending) => !expiredOutputVolumes.includes(pending),
-    );
-    if (expiredOutputVolumes.length > 0) {
-      const expiredNodeIds = expiredOutputVolumes.map((pending) => pending.nodeId);
-      const nextQueue = { ...queuedOutputVolumes };
-      for (const nodeId of expiredNodeIds) delete nextQueue[nodeId];
-      queuedOutputVolumes = nextQueue;
-    }
-    showError(
-      t(
-        expiredOutputVolumes.length > 0
-          ? 'outputVolumeTimeout'
-          : defaultAudioSourceExpired
-            ? 'defaultInputTimeout'
-            : defaultAudioSinkExpired
-              ? 'defaultPlaybackTimeout'
-              : 'confirmationTimeout',
-      ),
-    );
-    void resyncGraph(false);
+  function changeDefaultAudioSource(event: Event): void {
+    void session.setDefaultAudioSource(Number((event.currentTarget as HTMLSelectElement).value));
   }
 
   function onGlobalKeyDown(event: KeyboardEvent): void {
@@ -1017,32 +483,11 @@
 
   onMount(() => {
     setDocumentLocale(locale);
-    let unsubscribe: Unsubscribe | undefined;
-    let unsubscribeOutputLevels: Unsubscribe | undefined;
-    void bridge
-      .subscribe(onEnvelope)
-      .then((stop) => (unsubscribe = stop))
-      .catch((error) => showError(t('graphReadFailed', { message: errorMessage(error) })));
-    void bridge
-      .subscribeOutputLevels(onOutputLevel)
-      .then((stop) => {
-        unsubscribeOutputLevels = stop;
-        syncOutputMetering(workspaceView === 'mixer');
-      })
-      .catch((error) => console.warn('Could not subscribe to PipeWire output levels', error));
-    const timer = window.setInterval(checkPendingTimeouts, 250);
-    const applicationMemoryTimer = window.setInterval(
-      () => reconcileApplicationVolumeState(),
-      60_000,
-    );
+    session.start({ outputMetering: workspaceView === 'mixer' });
     window.addEventListener('keydown', onGlobalKeyDown);
     return () => {
-      unsubscribe?.();
-      unsubscribeOutputLevels?.();
-      syncOutputMetering(false);
-      if (outputLevelFrame !== 0) cancelAnimationFrame(outputLevelFrame);
-      window.clearInterval(timer);
-      window.clearInterval(applicationMemoryTimer);
+      session.stop();
+      unsubscribeSessionState();
       window.removeEventListener('keydown', onGlobalKeyDown);
     };
   });
@@ -1058,162 +503,31 @@
         : 'Advanced patchbay'}
     data-testid="app-shell"
   >
-    <header class="app-header" data-tauri-drag-region>
-      <div class="app-header__brand" data-tauri-drag-region>
-        <span class="brand-mark" aria-hidden="true" data-tauri-drag-region>[CF]</span>
-        <div data-tauri-drag-region>
-          <h1 data-tauri-drag-region>{t('appName')}</h1>
-          <p data-tauri-drag-region>{t('studioRouting')}</p>
-        </div>
-      </div>
+    <HeaderSettings
+      {settingsOpen}
+      {locale}
+      resyncing={sessionState.resyncing}
+      {t}
+      onToggleSettings={() => (settingsOpen = !settingsOpen)}
+      onCloseSettings={() => (settingsOpen = false)}
+      onLocaleChange={changeLocale}
+      onResync={() => void session.resync()}
+      onMinimize={minimizeAppWindow}
+      onToggleMaximize={toggleAppWindowMaximize}
+      onCloseWindow={closeAppWindow}
+    />
 
-      <div class="app-header__actions">
-        <button
-          class="icon-button"
-          type="button"
-          aria-label={t('settings')}
-          aria-expanded={settingsOpen}
-          data-testid="settings-menu-trigger"
-          onclick={() => (settingsOpen = !settingsOpen)}
-        >
-          <span class="ascii-icon" aria-hidden="true">[..]</span>
-        </button>
-        <div class="app-window-controls">
-          <button
-            class="app-window-control"
-            type="button"
-            aria-label={t('minimizeWindow')}
-            title={t('minimizeWindow')}
-            data-testid="window-minimize"
-            onclick={minimizeAppWindow}
-          >
-            <span aria-hidden="true">[-]</span>
-          </button>
-          <button
-            class="app-window-control"
-            type="button"
-            aria-label={t('maximizeWindow')}
-            title={t('maximizeWindow')}
-            data-testid="window-maximize"
-            onclick={toggleAppWindowMaximize}
-          >
-            <span aria-hidden="true">[□]</span>
-          </button>
-          <button
-            class="app-window-control app-window-control--close"
-            type="button"
-            aria-label={t('closeWindow')}
-            title={t('closeWindow')}
-            data-testid="window-close"
-            onclick={closeAppWindow}
-          >
-            <span aria-hidden="true">[x]</span>
-          </button>
-        </div>
-      </div>
-
-      {#if settingsOpen}
-        <div class="settings-menu" data-testid="settings-menu">
-          <header>
-            <strong>{t('settings')}</strong>
-            <button
-              class="icon-button"
-              type="button"
-              aria-label={t('closeSettings')}
-              onclick={() => (settingsOpen = false)}
-            >
-              <span class="ascii-icon" aria-hidden="true">[x]</span>
-            </button>
-          </header>
-          <label class="settings-menu__row">
-            <span><span class="ascii-icon" aria-hidden="true">[A]</span>{t('language')}</span>
-            <select value={locale} onchange={changeLocale} aria-label={t('language')}>
-              <option value="en">English</option>
-              <option value="zh-CN">简体中文</option>
-            </select>
-          </label>
-          <button
-            class="button settings-menu__action"
-            type="button"
-            disabled={resyncing}
-            onclick={() => resyncGraph()}
-          >
-            <span class="ascii-icon" aria-hidden="true">[r]</span>
-            {t(resyncing ? 'resyncing' : 'refresh')}
-          </button>
-        </div>
-      {/if}
-    </header>
-
-    <aside class="workspace-sidebar">
-      <span class="workspace-sidebar__label">{t('workspaces')}</span>
-      <nav class="workspace-nav" aria-label={t('workspaceView')}>
-        <button
-          class:workspace-nav__item--active={workspaceView === 'mixer'}
-          class="workspace-nav__item"
-          type="button"
-          aria-current={workspaceView === 'mixer' ? 'page' : undefined}
-          aria-pressed={workspaceView === 'mixer'}
-          data-testid="view-output-volumes"
-          onclick={() => changeWorkspaceView('mixer')}
-        >
-          <span class="workspace-nav__marker" aria-hidden="true">[=]</span>
-          <span
-            ><strong>{t('outputVolumes')}</strong><small>{t('outputMixerDescription')}</small></span
-          >
-        </button>
-        <button
-          class:workspace-nav__item--active={workspaceView === 'flows'}
-          class="workspace-nav__item"
-          type="button"
-          aria-current={workspaceView === 'flows' ? 'page' : undefined}
-          aria-pressed={workspaceView === 'flows'}
-          data-testid="view-audio-flows"
-          onclick={() => changeWorkspaceView('flows')}
-        >
-          <span><strong>{t('audioFlows')}</strong><small>{t('audioFlowsDescription')}</small></span>
-        </button>
-        {#if advancedModeEnabled}
-          <button
-            class:workspace-nav__item--active={workspaceView === 'patchbay'}
-            class="workspace-nav__item"
-            type="button"
-            aria-current={workspaceView === 'patchbay' ? 'page' : undefined}
-            aria-pressed={workspaceView === 'patchbay'}
-            data-testid="view-port-topology"
-            onclick={() => changeWorkspaceView('patchbay')}
-          >
-            <span class="workspace-nav__marker" aria-hidden="true">[:]</span>
-            <span
-              ><strong>{t('advancedPatchbay')}</strong><small>{t('patchbayDescription')}</small
-              ></span
-            >
-          </button>
-        {/if}
-      </nav>
-      {#if workspaceView === 'patchbay'}
-        <div
-          class="workspace-sidebar__metrics"
-          aria-label={t('graphSummary')}
-          data-testid="patchbay-metrics"
-        >
-          <span>{t('nodesCount', { count: graph.nodes.length })}</span>
-          <span>{t('portsCount', { count: graph.ports.length })}</span>
-          <span>{t('linksCount', { count: graph.links.length })}</span>
-        </div>
-      {/if}
-      {#if workspaceView === 'flows'}
-        <button
-          class="button button--small workspace-sidebar__action"
-          type="button"
-          disabled={graph.status.state !== 'connected'}
-          data-testid="flow-builder-open"
-          onclick={(event) => openFlowBuilder(event.currentTarget)}
-        >
-          <Plus size={15} aria-hidden="true" />{t('createAudioFlow')}
-        </button>
-      {/if}
-    </aside>
+    <WorkspaceSidebar
+      {workspaceView}
+      {advancedModeEnabled}
+      graphStatus={graph.status}
+      nodeCount={graph.nodes.length}
+      portCount={graph.ports.length}
+      linkCount={graph.links.length}
+      {t}
+      onChangeWorkspace={changeWorkspaceView}
+      onOpenFlowBuilder={openFlowBuilder}
+    />
 
     <section class="workspace-region">
       {#if errorNotice}
@@ -1245,23 +559,24 @@
       {:else if workspaceView === 'mixer'}
         <OutputVolumeWorkspace
           nodes={outputVolumeNodes}
-          applications={applicationVolumes}
-          {outputLevels}
+          applications={sessionState.applicationVolumes}
+          outputLevels={sessionState.outputLevels}
           defaultAudioSinkName={graph.defaultAudioSinkName}
           pendingNodeIds={pendingOutputVolumeNodeIds}
           pendingDefaultNodeId={pendingDefaultAudioSink?.nodeId ?? null}
           {t}
-          onSetVolume={(nodeId, volumePercent) => void setOutputVolume(nodeId, { volumePercent })}
-          onSetMuted={(nodeId, muted) => void setOutputVolume(nodeId, { muted })}
-          onSetDefault={(nodeId) => void setDefaultAudioSink(nodeId)}
+          onSetVolume={(nodeId, volumePercent) =>
+            void session.setOutputVolume(nodeId, { volumePercent })}
+          onSetMuted={(nodeId, muted) => void session.setOutputVolume(nodeId, { muted })}
+          onSetDefault={(nodeId) => void session.setDefaultAudioSink(nodeId)}
           onSetApplicationVolume={(applicationId, volumePercent) =>
-            setApplicationVolume(applicationId, { volumePercent })}
+            session.setApplicationVolume(applicationId, { volumePercent })}
           onSetApplicationMuted={(applicationId, muted) =>
-            setApplicationVolume(applicationId, { muted })}
+            session.setApplicationVolume(applicationId, { muted })}
         />
         <OutputSpectrum
           nodes={outputVolumeNodes}
-          spectra={outputSpectra}
+          spectra={sessionState.outputSpectra}
           defaultAudioSinkName={graph.defaultAudioSinkName}
           {t}
         />
@@ -1320,126 +635,28 @@
       />
     {/if}
 
-    <footer class="app-statusbar" data-testid="app-statusbar">
-      <span class={`status-chip status-chip--${graph.status.state}`} data-testid="graph-status">
-        <i aria-hidden="true"></i>{t(graph.status.state)}
-      </span>
-
-      <div
-        class:default-device-controls--editing={defaultDevicesEditing}
-        class="default-device-controls"
-      >
-        {#if defaultDevicesEditing}
-          <label class="default-device-control" data-testid="default-input-control">
-            <span>{t('defaultInputDevice')}</span>
-            <select
-              value={displayedDefaultAudioSourceId}
-              disabled={graph.status.state !== 'connected' ||
-                defaultAudioSources.length === 0 ||
-                pendingDefaultAudioSource !== null}
-              aria-label={t('defaultInputDevice')}
-              onchange={(event) => void changeDefaultAudioSource(event)}
-            >
-              {#if !activeDefaultAudioSource && !pendingDefaultAudioSource}
-                <option value="">{t('defaultInputUnknown')}</option>
-              {/if}
-              {#each defaultAudioSources as node (node.id)}
-                <option value={node.id}>
-                  {nodeDisplayName(node, t('unnamedNode'))}
-                  {node.objectName === graph.defaultAudioSourceName
-                    ? ` · ${t('currentDefault')}`
-                    : ''}
-                </option>
-              {/each}
-            </select>
-            {#if pendingDefaultAudioSource}
-              <span class="default-device-control__pending">{t('applying')}</span>
-            {/if}
-          </label>
-          <label class="default-device-control" data-testid="default-playback-control">
-            <span>{t('defaultPlaybackDevice')}</span>
-            <select
-              value={displayedDefaultAudioSinkId}
-              disabled={graph.status.state !== 'connected' ||
-                defaultAudioSinks.length === 0 ||
-                pendingDefaultAudioSink !== null}
-              aria-label={t('defaultPlaybackDevice')}
-              onchange={(event) => void changeDefaultAudioSink(event)}
-            >
-              {#if !activeDefaultAudioSink && !pendingDefaultAudioSink}
-                <option value="">{t('defaultPlaybackUnknown')}</option>
-              {/if}
-              {#each defaultAudioSinks as node (node.id)}
-                <option value={node.id}>
-                  {nodeDisplayName(node, t('unnamedNode'))}
-                  {node.objectName === graph.defaultAudioSinkName
-                    ? ` · ${t('currentDefault')}`
-                    : ''}
-                </option>
-              {/each}
-            </select>
-            {#if pendingDefaultAudioSink}
-              <span class="default-device-control__pending">{t('applying')}</span>
-            {/if}
-          </label>
-        {:else}
-          <div class="default-device-control" data-testid="default-input-control">
-            <span>{t('defaultInputDevice')}</span>
-            <strong
-              title={displayedDefaultAudioSource
-                ? nodeDisplayName(displayedDefaultAudioSource, t('unnamedNode'))
-                : t('defaultInputUnknown')}
-            >
-              {displayedDefaultAudioSource
-                ? nodeDisplayName(displayedDefaultAudioSource, t('unnamedNode'))
-                : t('defaultInputUnknown')}
-            </strong>
-            {#if pendingDefaultAudioSource}
-              <span class="default-device-control__pending">{t('applying')}</span>
-            {/if}
-          </div>
-          <div class="default-device-control" data-testid="default-playback-control">
-            <span>{t('defaultPlaybackDevice')}</span>
-            <strong
-              title={displayedDefaultAudioSink
-                ? nodeDisplayName(displayedDefaultAudioSink, t('unnamedNode'))
-                : t('defaultPlaybackUnknown')}
-            >
-              {displayedDefaultAudioSink
-                ? nodeDisplayName(displayedDefaultAudioSink, t('unnamedNode'))
-                : t('defaultPlaybackUnknown')}
-            </strong>
-            {#if pendingDefaultAudioSink}
-              <span class="default-device-control__pending">{t('applying')}</span>
-            {/if}
-          </div>
-        {/if}
-      </div>
-
-      <button
-        class="button button--small default-device-controls__edit"
-        type="button"
-        aria-pressed={defaultDevicesEditing}
-        data-testid="default-devices-edit"
-        onclick={() => (defaultDevicesEditing = !defaultDevicesEditing)}
-      >
-        {t(defaultDevicesEditing ? 'finishEditingDefaultDevices' : 'editDefaultDevices')}
-      </button>
-
-      <label class="custom-mode-switch" data-testid="advanced-mode-control">
-        <span>{t('customMode')}</span>
-        <input
-          class="custom-mode-switch__input"
-          type="checkbox"
-          checked={advancedModeEnabled}
-          aria-label={t('customMode')}
-          data-testid="advanced-mode-toggle"
-          onchange={changeAdvancedMode}
-        />
-        <span class="custom-mode-switch__track" aria-hidden="true"><i></i></span>
-        <strong>{t(advancedModeEnabled ? 'enabled' : 'disabled')}</strong>
-      </label>
-    </footer>
+    <StatusBar
+      status={graph.status}
+      {defaultDevicesEditing}
+      {defaultAudioSources}
+      {activeDefaultAudioSource}
+      {displayedDefaultAudioSource}
+      {displayedDefaultAudioSourceId}
+      pendingDefaultAudioSourceNodeId={pendingDefaultAudioSource?.nodeId ?? null}
+      defaultAudioSourceName={graph.defaultAudioSourceName}
+      {defaultAudioSinks}
+      {activeDefaultAudioSink}
+      {displayedDefaultAudioSink}
+      {displayedDefaultAudioSinkId}
+      pendingDefaultAudioSinkNodeId={pendingDefaultAudioSink?.nodeId ?? null}
+      defaultAudioSinkName={graph.defaultAudioSinkName}
+      {advancedModeEnabled}
+      {t}
+      onDefaultAudioSourceChange={changeDefaultAudioSource}
+      onDefaultAudioSinkChange={changeDefaultAudioSink}
+      onToggleDefaultDevicesEditing={() => (defaultDevicesEditing = !defaultDevicesEditing)}
+      onAdvancedModeChange={changeAdvancedMode}
+    />
 
     <div class="sr-only" aria-live="polite" aria-atomic="true">{announcement}</div>
   </main>
