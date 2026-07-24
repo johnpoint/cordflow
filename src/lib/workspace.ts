@@ -1,11 +1,15 @@
 export type WorkspaceId = 'flows' | 'mixer' | 'patchbay';
 export type RoutingPolicy = 'stereo-auto' | 'manual-port';
+export type MixerVolumeView = 'devices' | 'applications';
 
 export const workspaceStorageKey = 'cordflow.workspace';
 export const legacyStableWorkspaceStorageKey = 'helvum-next.workspace';
 export const legacyWorkspaceStorageKey = 'helvum-next.workspace-view';
 export const advancedModeStorageKey = 'cordflow.advanced-mode';
 export const legacyAdvancedModeStorageKey = 'helvum-next.custom-mode';
+export const hideInactiveNodesStorageKey = 'cordflow.patchbay-hide-inactive-nodes';
+export const mixerVolumeViewStorageKey = 'cordflow.mixer-volume-view';
+export const outputSpectrumEnabledStorageKey = 'cordflow.output-spectrum-enabled';
 
 export function workspaceRoutingPolicy(workspace: WorkspaceId): RoutingPolicy | null {
   if (workspace === 'flows') return 'stereo-auto';
@@ -24,6 +28,18 @@ export function readAdvancedModePreference(storage: Pick<Storage, 'getItem'>): b
     storage.getItem(legacyStableWorkspaceStorageKey) === 'patchbay' ||
     storage.getItem(legacyWorkspaceStorageKey) === 'topology'
   );
+}
+
+export function readHideInactiveNodesPreference(storage: Pick<Storage, 'getItem'>): boolean {
+  return storage.getItem(hideInactiveNodesStorageKey) === 'true';
+}
+
+export function readMixerVolumeViewPreference(storage: Pick<Storage, 'getItem'>): MixerVolumeView {
+  return storage.getItem(mixerVolumeViewStorageKey) === 'applications' ? 'applications' : 'devices';
+}
+
+export function readOutputSpectrumPreference(storage: Pick<Storage, 'getItem'>): boolean {
+  return storage.getItem(outputSpectrumEnabledStorageKey) !== 'false';
 }
 
 export function migrateWorkspacePreference(

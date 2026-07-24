@@ -1,6 +1,6 @@
-import type { NodeDto } from '../generated/graph';
+import type { LinkDto, NodeDto, PortDto } from '../generated/graph';
 import type { AudioFlowModule } from '../graph/audioFlow';
-import { connectedChain, nodeDisplayName } from '../graph/connection';
+import { connectedChain, nodeDisplayName, type PendingLink } from '../graph/connection';
 import type { GraphViewState } from '../graph/reducer';
 
 export interface GraphSelection {
@@ -14,6 +14,58 @@ export interface GraphFocus {
   focusedPortIds: Set<number>;
   focusedNodeIds: Set<number>;
   active: boolean;
+}
+
+export interface VisibleTopology {
+  nodes: NodeDto[];
+  ports: PortDto[];
+  links: LinkDto[];
+  pendingLinks: PendingLink[];
+}
+
+export function selectVisibleTopology(
+  graph: Pick<GraphViewState, 'nodes' | 'ports' | 'links'>,
+  pendingLinks: PendingLink[],
+  hideInactiveNodes: boolean,
+): VisibleTopology {
+  if (!hideInactiveNodes) {
+    return {
+      nodes: graph.nodes,
+      ports: graph.ports,
+      links: graph.links,
+      pendingLinks,
+    };
+  }
+
+  const visiblePortIds = new Set<number>();
+  for (const link of graph.links) {
+    if (!link.active) continue;
+    visiblePortIds.add(link.outputPortId);
+    visiblePortIds.add(link.inputPortId);
+  }
+  for (const pending of pendingLinks) {
+    visiblePortIds.add(pending.outputPortId);
+    visiblePortIds.add(pending.inputPortId);
+  }
+
+  const visibleNodeIds = new Set(
+    graph.ports.filter((port) => visiblePortIds.has(port.id)).map((port) => port.nodeId),
+  );
+  const nodes = graph.nodes.filter((node) => visibleNodeIds.has(node.id));
+  const ports = graph.ports.filter((port) => visibleNodeIds.has(port.nodeId));
+  const allVisiblePortIds = new Set(ports.map((port) => port.id));
+
+  return {
+    nodes,
+    ports,
+    links: graph.links.filter(
+      (link) => allVisiblePortIds.has(link.outputPortId) && allVisiblePortIds.has(link.inputPortId),
+    ),
+    pendingLinks: pendingLinks.filter(
+      (pending) =>
+        allVisiblePortIds.has(pending.outputPortId) && allVisiblePortIds.has(pending.inputPortId),
+    ),
+  };
 }
 
 export function selectDefaultAudioSinks(

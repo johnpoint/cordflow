@@ -801,6 +801,34 @@ mod tests {
             .any(|line| line.trim_start().starts_with(&prefix) && line.contains("|->"))
     }
 
+    fn default_sink_volume_percent() -> u16 {
+        let output = Command::new("wpctl")
+            .args(["get-volume", "@DEFAULT_AUDIO_SINK@"])
+            .output()
+            .expect("failed to execute wpctl for the default sink volume");
+        assert!(
+            output.status.success(),
+            "wpctl could not read the default sink volume"
+        );
+        String::from_utf8(output.stdout)
+            .expect("wpctl returned non-UTF-8 output")
+            .split_whitespace()
+            .find_map(|value| value.parse::<f32>().ok())
+            .map(|value| (value * 100.0).round() as u16)
+            .expect("wpctl output did not contain a volume value")
+    }
+
+    struct DefaultSinkVolumeRestore(u16);
+
+    impl Drop for DefaultSinkVolumeRestore {
+        fn drop(&mut self) {
+            let volume = format!("{}%", self.0);
+            let _ = Command::new("wpctl")
+                .args(["set-volume", "@DEFAULT_AUDIO_SINK@", &volume])
+                .status();
+        }
+    }
+
     #[test]
     #[ignore = "requires the isolated temporary PipeWire daemon created by scripts/live-pipewire-smoke.sh"]
     fn live_pipewire_create_persist_reopen_remove() {
@@ -909,6 +937,97 @@ mod tests {
             thread::sleep(Duration::from_millis(50));
         }
         engine.terminate();
+    }
+
+    #[test]
+    #[ignore = "requires the current desktop PipeWire and WirePlumber session"]
+    fn live_default_sink_volume_matches_wireplumber_route() {
+        let expected_percent = default_sink_volume_percent();
+
+        let engine = PipeWireEngine::spawn();
+        let (_, snapshot) = wait_for_snapshot(&engine, Duration::from_secs(5), |_, graph| {
+            let Some(default_name) = graph.default_audio_sink_name.as_deref() else {
+                return false;
+            };
+            graph.nodes.iter().any(|node| {
+                node.object_name.as_deref() == Some(default_name) && node.volume_percent.is_some()
+            })
+        });
+        let default_name = snapshot.default_audio_sink_name.as_deref().unwrap();
+        let sink = snapshot
+            .nodes
+            .iter()
+            .find(|node| node.object_name.as_deref() == Some(default_name))
+            .unwrap();
+        engine.terminate();
+
+        assert_eq!(sink.volume_percent, Some(expected_percent));
+    }
+
+    #[test]
+    #[ignore = "briefly changes and restores the current desktop default sink volume"]
+    fn live_default_sink_volume_round_trips_through_wireplumber_route() {
+        let original_percent = default_sink_volume_percent();
+        let _restore = DefaultSinkVolumeRestore(original_percent);
+        let target_percent = if original_percent < 100 {
+            original_percent + 1
+        } else {
+            original_percent.saturating_sub(1)
+        };
+
+        let engine = PipeWireEngine::spawn();
+        let (generation, snapshot) =
+            wait_for_snapshot(&engine, Duration::from_secs(5), |_, graph| {
+                let Some(default_name) = graph.default_audio_sink_name.as_deref() else {
+                    return false;
+                };
+                graph.nodes.iter().any(|node| {
+                    node.object_name.as_deref() == Some(default_name)
+                        && node.volume_percent == Some(original_percent)
+                })
+            });
+        let default_name = snapshot.default_audio_sink_name.as_deref().unwrap();
+        let sink_id = snapshot
+            .nodes
+            .iter()
+            .find(|node| node.object_name.as_deref() == Some(default_name))
+            .unwrap()
+            .id;
+
+        engine
+            .set_output_volume(SetOutputVolumeRequest {
+                operation_id: "live-route-volume".into(),
+                generation,
+                node_id: sink_id,
+                volume_percent: Some(target_percent),
+                muted: None,
+            })
+            .expect("Cordflow could not set the default sink route volume");
+        wait_for_snapshot(&engine, Duration::from_secs(5), |_, graph| {
+            graph
+                .nodes
+                .iter()
+                .any(|node| node.id == sink_id && node.volume_percent == Some(target_percent))
+        });
+        assert_eq!(default_sink_volume_percent(), target_percent);
+
+        engine
+            .set_output_volume(SetOutputVolumeRequest {
+                operation_id: "live-route-volume-restore".into(),
+                generation,
+                node_id: sink_id,
+                volume_percent: Some(original_percent),
+                muted: None,
+            })
+            .expect("Cordflow could not restore the default sink route volume");
+        wait_for_snapshot(&engine, Duration::from_secs(5), |_, graph| {
+            graph
+                .nodes
+                .iter()
+                .any(|node| node.id == sink_id && node.volume_percent == Some(original_percent))
+        });
+        engine.terminate();
+        assert_eq!(default_sink_volume_percent(), original_percent);
     }
 
     #[test]

@@ -1,8 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   advancedModeStorageKey,
+  hideInactiveNodesStorageKey,
   migrateWorkspacePreference,
+  mixerVolumeViewStorageKey,
+  outputSpectrumEnabledStorageKey,
   readAdvancedModePreference,
+  readHideInactiveNodesPreference,
+  readMixerVolumeViewPreference,
+  readOutputSpectrumPreference,
   workspaceRoutingPolicy,
   workspaceStorageKey,
 } from './workspace';
@@ -53,6 +59,33 @@ describe('workspace preferences', () => {
     expect(readAdvancedModePreference(storageWith({ [advancedModeStorageKey]: 'true' }))).toBe(
       true,
     );
+  });
+
+  it('keeps inactive patchbay nodes visible by default and honors the saved filter', () => {
+    expect(readHideInactiveNodesPreference(storageWith({}))).toBe(false);
+    expect(
+      readHideInactiveNodesPreference(storageWith({ [hideInactiveNodesStorageKey]: 'true' })),
+    ).toBe(true);
+  });
+
+  it('keeps the mixer volume subview preference with the existing storage key', () => {
+    expect(readMixerVolumeViewPreference(storageWith({}))).toBe('devices');
+    expect(
+      readMixerVolumeViewPreference(storageWith({ [mixerVolumeViewStorageKey]: 'applications' })),
+    ).toBe('applications');
+    expect(
+      readMixerVolumeViewPreference(storageWith({ [mixerVolumeViewStorageKey]: 'unknown' })),
+    ).toBe('devices');
+  });
+
+  it('keeps the output spectrum background enabled unless explicitly disabled', () => {
+    expect(readOutputSpectrumPreference(storageWith({}))).toBe(true);
+    expect(
+      readOutputSpectrumPreference(storageWith({ [outputSpectrumEnabledStorageKey]: 'false' })),
+    ).toBe(false);
+    expect(
+      readOutputSpectrumPreference(storageWith({ [outputSpectrumEnabledStorageKey]: 'true' })),
+    ).toBe(true);
   });
 
   it('keeps an existing advanced workspace available during migration', () => {

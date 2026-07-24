@@ -9,6 +9,7 @@
     type GraphSessionOperation,
   } from './lib/app';
   import HeaderSettings from './lib/app/HeaderSettings.svelte';
+  import SettingsDialog from './lib/app/SettingsDialog.svelte';
   import StatusBar from './lib/app/StatusBar.svelte';
   import WorkspaceSidebar from './lib/app/WorkspaceSidebar.svelte';
   import {
@@ -18,6 +19,7 @@
     selectDisplayedDefaultDevice,
     selectGraphFocus,
     selectOutputVolumeNodes,
+    selectVisibleTopology,
   } from './lib/app/selectors';
   import { createGraphBridge } from './lib/bridge';
   import AudioFlowBuilder from './lib/components/AudioFlowBuilder.svelte';
@@ -44,10 +46,17 @@
   } from './lib/i18n';
   import {
     advancedModeStorageKey,
+    hideInactiveNodesStorageKey,
     migrateWorkspacePreference,
+    mixerVolumeViewStorageKey,
+    outputSpectrumEnabledStorageKey,
     readAdvancedModePreference,
+    readHideInactiveNodesPreference,
+    readMixerVolumeViewPreference,
+    readOutputSpectrumPreference,
     workspaceRoutingPolicy,
     workspaceStorageKey,
+    type MixerVolumeView,
     type RoutingPolicy,
     type WorkspaceId,
   } from './lib/workspace';
@@ -71,9 +80,9 @@
   let announcement = '';
   let errorNotice = '';
   let settingsOpen = false;
+  let settingsReturnFocus: HTMLElement | null = null;
   let flowBuilderOpen = false;
   let flowBuilderReturnFocus: HTMLElement | null = null;
-  let defaultDevicesEditing = false;
   const storedConnectionsExpanded =
     localStorage.getItem(connectionPanelStorageKey) ??
     localStorage.getItem(legacyConnectionPanelStorageKey);
@@ -85,7 +94,10 @@
   }
   let connectionsExpanded = storedConnectionsExpanded === 'true';
   let advancedModeEnabled = readAdvancedModePreference(localStorage);
+  let hideInactiveNodes = readHideInactiveNodesPreference(localStorage);
   let workspaceView: WorkspaceId = migrateWorkspacePreference(localStorage);
+  let mixerVolumeView: MixerVolumeView = readMixerVolumeViewPreference(localStorage);
+  let outputSpectrumEnabled = readOutputSpectrumPreference(localStorage);
   if (!advancedModeEnabled && workspaceView === 'patchbay') {
     workspaceView = 'mixer';
     localStorage.setItem(workspaceStorageKey, workspaceView);
@@ -133,6 +145,7 @@
     pendingDefaultAudioSource?.nodeId ?? null,
   );
   $: outputVolumeNodes = selectOutputVolumeNodes(graph, t('unnamedNode'), locale);
+  $: visiblePatchbayTopology = selectVisibleTopology(graph, pendingLinks, hideInactiveNodes);
   $: graphFocus = selectGraphFocus(graph, audioFlowModules, {
     selectedLinkId,
     selectedNodeId,
@@ -352,6 +365,16 @@
     session.setOutputMetering(view === 'mixer');
   }
 
+  function changeMixerVolumeView(view: MixerVolumeView): void {
+    mixerVolumeView = view;
+    localStorage.setItem(mixerVolumeViewStorageKey, view);
+  }
+
+  function changeOutputSpectrum(event: Event): void {
+    outputSpectrumEnabled = (event.currentTarget as HTMLInputElement).checked;
+    localStorage.setItem(outputSpectrumEnabledStorageKey, String(outputSpectrumEnabled));
+  }
+
   function openFlowBuilder(trigger: HTMLElement): void {
     flowBuilderReturnFocus = trigger;
     flowBuilderOpen = true;
@@ -364,12 +387,35 @@
     requestAnimationFrame(() => returnFocus?.focus());
   }
 
+  function openSettings(trigger: HTMLElement): void {
+    settingsReturnFocus = trigger;
+    settingsOpen = true;
+  }
+
+  function closeSettings(): void {
+    settingsOpen = false;
+    const returnFocus = settingsReturnFocus;
+    settingsReturnFocus = null;
+    requestAnimationFrame(() => {
+      const trigger = returnFocus?.isConnected
+        ? returnFocus
+        : document.querySelector<HTMLElement>('[data-testid="settings-menu-trigger"]');
+      trigger?.focus();
+    });
+  }
+
   function changeAdvancedMode(event: Event): void {
     const enabled = (event.currentTarget as HTMLInputElement).checked;
     advancedModeEnabled = enabled;
     localStorage.setItem(advancedModeStorageKey, String(enabled));
     if (!enabled && workspaceView === 'patchbay') changeWorkspaceView('mixer');
     announce(t(enabled ? 'customModeEnabled' : 'customModeDisabled'));
+  }
+
+  function changeHideInactiveNodes(event: Event): void {
+    hideInactiveNodes = (event.currentTarget as HTMLInputElement).checked;
+    localStorage.setItem(hideInactiveNodesStorageKey, String(hideInactiveNodes));
+    clearGraphSelection();
   }
 
   function clearGraphSelection(): void {
@@ -505,17 +551,38 @@
   >
     <HeaderSettings
       {settingsOpen}
-      {locale}
-      resyncing={sessionState.resyncing}
       {t}
-      onToggleSettings={() => (settingsOpen = !settingsOpen)}
-      onCloseSettings={() => (settingsOpen = false)}
-      onLocaleChange={changeLocale}
-      onResync={() => void session.resync()}
+      onOpenSettings={openSettings}
       onMinimize={minimizeAppWindow}
       onToggleMaximize={toggleAppWindowMaximize}
       onCloseWindow={closeAppWindow}
     />
+
+    {#if settingsOpen}
+      <SettingsDialog
+        {locale}
+        resyncing={sessionState.resyncing}
+        status={graph.status}
+        {defaultAudioSources}
+        {activeDefaultAudioSource}
+        {displayedDefaultAudioSourceId}
+        pendingDefaultAudioSourceNodeId={pendingDefaultAudioSource?.nodeId ?? null}
+        defaultAudioSourceName={graph.defaultAudioSourceName}
+        {defaultAudioSinks}
+        {activeDefaultAudioSink}
+        {displayedDefaultAudioSinkId}
+        pendingDefaultAudioSinkNodeId={pendingDefaultAudioSink?.nodeId ?? null}
+        defaultAudioSinkName={graph.defaultAudioSinkName}
+        {outputSpectrumEnabled}
+        {t}
+        onDefaultAudioSourceChange={changeDefaultAudioSource}
+        onDefaultAudioSinkChange={changeDefaultAudioSink}
+        onLocaleChange={changeLocale}
+        onOutputSpectrumChange={changeOutputSpectrum}
+        onResync={() => void session.resync()}
+        onClose={closeSettings}
+      />
+    {/if}
 
     <WorkspaceSidebar
       {workspaceView}
@@ -524,8 +591,10 @@
       nodeCount={graph.nodes.length}
       portCount={graph.ports.length}
       linkCount={graph.links.length}
+      {mixerVolumeView}
       {t}
       onChangeWorkspace={changeWorkspaceView}
+      onChangeMixerVolumeView={changeMixerVolumeView}
       onOpenFlowBuilder={openFlowBuilder}
     />
 
@@ -564,6 +633,7 @@
           defaultAudioSinkName={graph.defaultAudioSinkName}
           pendingNodeIds={pendingOutputVolumeNodeIds}
           pendingDefaultNodeId={pendingDefaultAudioSink?.nodeId ?? null}
+          {mixerVolumeView}
           {t}
           onSetVolume={(nodeId, volumePercent) =>
             void session.setOutputVolume(nodeId, { volumePercent })}
@@ -574,19 +644,21 @@
           onSetApplicationMuted={(applicationId, muted) =>
             session.setApplicationVolume(applicationId, { muted })}
         />
-        <OutputSpectrum
-          nodes={outputVolumeNodes}
-          spectra={sessionState.outputSpectra}
-          defaultAudioSinkName={graph.defaultAudioSinkName}
-          {t}
-        />
+        {#if outputSpectrumEnabled}
+          <OutputSpectrum
+            nodes={outputVolumeNodes}
+            spectra={sessionState.outputSpectra}
+            defaultAudioSinkName={graph.defaultAudioSinkName}
+            {t}
+          />
+        {/if}
       {:else}
         <div class="patchbay-main">
           <TopologyWorkspace
-            nodes={graph.nodes}
-            ports={graph.ports}
-            links={graph.links}
-            {pendingLinks}
+            nodes={visiblePatchbayTopology.nodes}
+            ports={visiblePatchbayTopology.ports}
+            links={visiblePatchbayTopology.links}
+            pendingLinks={visiblePatchbayTopology.pendingLinks}
             status={graph.status}
             {selectedLinkId}
             selectedNodeId={selectedNodeId ?? selectedFlowSourceId}
@@ -595,12 +667,14 @@
             {focusedNodeIds}
             focusActive={graphFocusActive}
             autoStereoMatch={false}
+            {hideInactiveNodes}
             {t}
             onCreateLinks={createLinks}
             onSelectLink={selectLink}
             onSelectNode={selectNode}
             onClearSelection={clearGraphSelection}
             onAnnounce={announce}
+            onHideInactiveNodesChange={changeHideInactiveNodes}
           />
         </div>
         <ConnectionPanel
@@ -637,24 +711,12 @@
 
     <StatusBar
       status={graph.status}
-      {defaultDevicesEditing}
-      {defaultAudioSources}
-      {activeDefaultAudioSource}
       {displayedDefaultAudioSource}
-      {displayedDefaultAudioSourceId}
       pendingDefaultAudioSourceNodeId={pendingDefaultAudioSource?.nodeId ?? null}
-      defaultAudioSourceName={graph.defaultAudioSourceName}
-      {defaultAudioSinks}
-      {activeDefaultAudioSink}
       {displayedDefaultAudioSink}
-      {displayedDefaultAudioSinkId}
       pendingDefaultAudioSinkNodeId={pendingDefaultAudioSink?.nodeId ?? null}
-      defaultAudioSinkName={graph.defaultAudioSinkName}
       {advancedModeEnabled}
       {t}
-      onDefaultAudioSourceChange={changeDefaultAudioSource}
-      onDefaultAudioSinkChange={changeDefaultAudioSink}
-      onToggleDefaultDevicesEditing={() => (defaultDevicesEditing = !defaultDevicesEditing)}
       onAdvancedModeChange={changeAdvancedMode}
     />
 

@@ -28,7 +28,10 @@ use libspa::{
 };
 use log::info;
 
-use super::{metering::MeterManager, registry::RegistrySession};
+use super::{
+    metering::MeterManager,
+    registry::{OutputVolumeRoute, RegistrySession},
+};
 use crate::{
     engine::PipeWireAdapter,
     graph_state::{
@@ -135,15 +138,32 @@ impl PipeWireAdapter for LiveAdapter<'_> {
     }
 
     fn set_output_volume(&self, volume: ValidatedOutputVolume) -> Result<(), String> {
-        let values = serialize_output_volume(&volume)?;
+        let route = self.registry.output_volume_route(volume.node_id);
+        let values = match &route {
+            Some(route) => serialize_output_route(route, &volume)?,
+            None => serialize_output_volume(&volume)?,
+        };
         let pod = Pod::from_bytes(&values)
             .ok_or_else(|| "Could not serialize PipeWire volume parameters".to_owned())?;
         info!(
-            "requesting output volume update for node {}: volume={:?}, muted={:?}",
-            volume.node_id, volume.volume_percent, volume.muted
+            "requesting output volume update for node {} via {}: volume={:?}, muted={:?}",
+            volume.node_id,
+            if route.is_some() {
+                "device route"
+            } else {
+                "node properties"
+            },
+            volume.volume_percent,
+            volume.muted
         );
-        self.registry
-            .set_node_param(volume.node_id, ParamType::Props, pod)
+        match route {
+            Some(route) => self
+                .registry
+                .set_device_param(route.device_id, ParamType::Route, pod),
+            None => self
+                .registry
+                .set_node_param(volume.node_id, ParamType::Props, pod),
+        }
     }
 
     fn set_output_metering(&self, enabled: bool) {
@@ -176,4 +196,190 @@ fn serialize_output_volume(volume: &ValidatedOutputVolume) -> Result<Vec<u8>, St
     )
     .map(|(cursor, _)| cursor.into_inner())
     .map_err(|error| format!("Could not serialize PipeWire volume parameters: {error:?}"))
+}
+
+fn serialize_output_route(
+    route: &OutputVolumeRoute,
+    volume: &ValidatedOutputVolume,
+) -> Result<Vec<u8>, String> {
+    let mut route_properties = Vec::new();
+    let channel_volumes = if let Some(percent) = volume.volume_percent {
+        let linear = (f32::from(percent) / 100.0).powi(3);
+        let channel_count = if route.channel_volumes.is_empty() {
+            volume.channel_count
+        } else {
+            route.channel_volumes.len()
+        };
+        vec![linear; channel_count]
+    } else {
+        route.channel_volumes.clone()
+    };
+    if !channel_volumes.is_empty() {
+        route_properties.push(Property::new(
+            libspa::sys::SPA_PROP_channelVolumes,
+            Value::ValueArray(ValueArray::Float(channel_volumes)),
+        ));
+    }
+    if !route.channel_map.is_empty() {
+        route_properties.push(Property::new(
+            libspa::sys::SPA_PROP_channelMap,
+            Value::ValueArray(ValueArray::Id(route.channel_map.clone())),
+        ));
+    }
+    if let Some(muted) = volume.muted.or(route.muted) {
+        route_properties.push(Property::new(
+            libspa::sys::SPA_PROP_mute,
+            Value::Bool(muted),
+        ));
+    }
+
+    PodSerializer::serialize(
+        Cursor::new(Vec::new()),
+        &Value::Object(Object {
+            type_: libspa::sys::SPA_TYPE_OBJECT_ParamRoute,
+            id: libspa::sys::SPA_PARAM_Route,
+            properties: vec![
+                Property::new(
+                    libspa::sys::SPA_PARAM_ROUTE_index,
+                    Value::Int(route.route_index),
+                ),
+                Property::new(
+                    libspa::sys::SPA_PARAM_ROUTE_device,
+                    Value::Int(route.route_device_id),
+                ),
+                Property::new(
+                    libspa::sys::SPA_PARAM_ROUTE_props,
+                    Value::Object(Object {
+                        type_: libspa::sys::SPA_TYPE_OBJECT_Props,
+                        id: libspa::sys::SPA_PARAM_Route,
+                        properties: route_properties,
+                    }),
+                ),
+                Property::new(libspa::sys::SPA_PARAM_ROUTE_save, Value::Bool(true)),
+            ],
+        }),
+    )
+    .map(|(cursor, _)| cursor.into_inner())
+    .map_err(|error| format!("Could not serialize PipeWire route parameters: {error:?}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use libspa::{pod::deserialize::PodDeserializer, utils::Id};
+
+    use super::*;
+
+    fn route() -> OutputVolumeRoute {
+        OutputVolumeRoute {
+            device_id: 163,
+            route_index: 1,
+            route_device_id: 1,
+            channel_volumes: vec![0.324_346, 0.324_346],
+            channel_map: vec![Id(3), Id(4)],
+            muted: Some(false),
+        }
+    }
+
+    fn parse_route(bytes: &[u8]) -> Object {
+        let (_, Value::Object(object)) = PodDeserializer::deserialize_any_from(bytes).unwrap()
+        else {
+            panic!("serialized route must be an object");
+        };
+        object
+    }
+
+    #[test]
+    fn serializes_device_route_volume_with_persistent_route_properties() {
+        let update = ValidatedOutputVolume {
+            node_id: 55,
+            channel_count: 2,
+            volume_percent: Some(76),
+            muted: None,
+        };
+        let bytes = serialize_output_route(&route(), &update).unwrap();
+        let object = parse_route(&bytes);
+
+        assert_eq!(object.type_, libspa::sys::SPA_TYPE_OBJECT_ParamRoute);
+        assert_eq!(object.id, libspa::sys::SPA_PARAM_Route);
+        let mut index = None;
+        let mut device = None;
+        let mut saved = None;
+        let mut props = None;
+        for property in object.properties {
+            match (property.key, property.value) {
+                (libspa::sys::SPA_PARAM_ROUTE_index, Value::Int(value)) => index = Some(value),
+                (libspa::sys::SPA_PARAM_ROUTE_device, Value::Int(value)) => device = Some(value),
+                (libspa::sys::SPA_PARAM_ROUTE_save, Value::Bool(value)) => saved = Some(value),
+                (libspa::sys::SPA_PARAM_ROUTE_props, Value::Object(value)) => props = Some(value),
+                _ => {}
+            }
+        }
+
+        assert_eq!(index, Some(1));
+        assert_eq!(device, Some(1));
+        assert_eq!(saved, Some(true));
+        let props = props.unwrap();
+        assert_eq!(props.type_, libspa::sys::SPA_TYPE_OBJECT_Props);
+        assert_eq!(props.id, libspa::sys::SPA_PARAM_Route);
+        let mut volumes = None;
+        let mut channel_map = None;
+        let mut muted = None;
+        for property in props.properties {
+            match (property.key, property.value) {
+                (
+                    libspa::sys::SPA_PROP_channelVolumes,
+                    Value::ValueArray(ValueArray::Float(value)),
+                ) => volumes = Some(value),
+                (libspa::sys::SPA_PROP_channelMap, Value::ValueArray(ValueArray::Id(value))) => {
+                    channel_map = Some(value)
+                }
+                (libspa::sys::SPA_PROP_mute, Value::Bool(value)) => muted = Some(value),
+                _ => {}
+            }
+        }
+
+        let expected = 0.76_f32.powi(3);
+        let volumes = volumes.unwrap();
+        assert_eq!(volumes.len(), 2);
+        assert!(volumes
+            .iter()
+            .all(|volume| (volume - expected).abs() < 1e-6));
+        assert_eq!(channel_map, Some(vec![Id(3), Id(4)]));
+        assert_eq!(muted, Some(false));
+    }
+
+    #[test]
+    fn mute_only_route_update_keeps_current_hardware_volume() {
+        let update = ValidatedOutputVolume {
+            node_id: 55,
+            channel_count: 2,
+            volume_percent: None,
+            muted: Some(true),
+        };
+        let bytes = serialize_output_route(&route(), &update).unwrap();
+        let object = parse_route(&bytes);
+        let props = object
+            .properties
+            .into_iter()
+            .find_map(|property| match (property.key, property.value) {
+                (libspa::sys::SPA_PARAM_ROUTE_props, Value::Object(value)) => Some(value),
+                _ => None,
+            })
+            .unwrap();
+        let mut volumes = None;
+        let mut muted = None;
+        for property in props.properties {
+            match (property.key, property.value) {
+                (
+                    libspa::sys::SPA_PROP_channelVolumes,
+                    Value::ValueArray(ValueArray::Float(value)),
+                ) => volumes = Some(value),
+                (libspa::sys::SPA_PROP_mute, Value::Bool(value)) => muted = Some(value),
+                _ => {}
+            }
+        }
+
+        assert_eq!(volumes, Some(vec![0.324_346, 0.324_346]));
+        assert_eq!(muted, Some(true));
+    }
 }

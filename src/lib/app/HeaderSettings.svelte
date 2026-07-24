@@ -1,14 +1,11 @@
 <script lang="ts">
-  import type { Locale, MessageKey } from '../i18n';
+  import { Settings } from '@lucide/svelte';
+  import cordflowLogo from '../../../src-tauri/icons/icon.svg';
+  import type { MessageKey } from '../i18n';
 
   export let settingsOpen: boolean;
-  export let locale: Locale;
-  export let resyncing: boolean;
   export let t: (key: MessageKey, values?: Record<string, string | number>) => string;
-  export let onToggleSettings: () => void;
-  export let onCloseSettings: () => void;
-  export let onLocaleChange: (event: Event) => void;
-  export let onResync: () => void;
+  export let onOpenSettings: (trigger: HTMLElement) => void;
   export let onMinimize: () => void;
   export let onToggleMaximize: () => void;
   export let onCloseWindow: () => void;
@@ -16,7 +13,14 @@
 
 <header class="app-header" data-tauri-drag-region>
   <div class="app-header__brand" data-tauri-drag-region>
-    <span class="brand-mark" aria-hidden="true" data-tauri-drag-region>[CF]</span>
+    <img
+      class="brand-logo"
+      src={cordflowLogo}
+      alt=""
+      aria-hidden="true"
+      data-testid="brand-logo"
+      data-tauri-drag-region
+    />
     <div data-tauri-drag-region>
       <h1 data-tauri-drag-region>{t('appName')}</h1>
       <p data-tauri-drag-region>{t('studioRouting')}</p>
@@ -30,9 +34,9 @@
       aria-label={t('settings')}
       aria-expanded={settingsOpen}
       data-testid="settings-menu-trigger"
-      onclick={onToggleSettings}
+      onclick={(event) => onOpenSettings(event.currentTarget)}
     >
-      <span class="ascii-icon" aria-hidden="true">[..]</span>
+      <Settings size={18} strokeWidth={1.8} aria-hidden="true" />
     </button>
     <div class="app-window-controls">
       <button
@@ -67,36 +71,4 @@
       </button>
     </div>
   </div>
-
-  {#if settingsOpen}
-    <div class="settings-menu" data-testid="settings-menu">
-      <header>
-        <strong>{t('settings')}</strong>
-        <button
-          class="icon-button"
-          type="button"
-          aria-label={t('closeSettings')}
-          onclick={onCloseSettings}
-        >
-          <span class="ascii-icon" aria-hidden="true">[x]</span>
-        </button>
-      </header>
-      <label class="settings-menu__row">
-        <span><span class="ascii-icon" aria-hidden="true">[A]</span>{t('language')}</span>
-        <select value={locale} onchange={onLocaleChange} aria-label={t('language')}>
-          <option value="en">English</option>
-          <option value="zh-CN">简体中文</option>
-        </select>
-      </label>
-      <button
-        class="button settings-menu__action"
-        type="button"
-        disabled={resyncing}
-        onclick={onResync}
-      >
-        <span class="ascii-icon" aria-hidden="true">[r]</span>
-        {t(resyncing ? 'resyncing' : 'refresh')}
-      </button>
-    </div>
-  {/if}
 </header>

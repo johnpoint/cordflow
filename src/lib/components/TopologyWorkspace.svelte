@@ -27,12 +27,14 @@
   export let focusedNodeIds: Set<number>;
   export let focusActive: boolean;
   export let autoStereoMatch: boolean;
+  export let hideInactiveNodes: boolean;
   export let t: (key: MessageKey, values?: Record<string, string | number>) => string;
   export let onCreateLinks: (ports: NormalizedPorts[]) => void;
   export let onSelectLink: (linkId: number | null) => void;
   export let onSelectNode: (nodeId: number) => void;
   export let onClearSelection: () => void;
   export let onAnnounce: (message: string) => void;
+  export let onHideInactiveNodesChange: (event: Event) => void;
 
   let canvas: HTMLDivElement;
   let graphColumns: HTMLDivElement;
@@ -261,10 +263,25 @@
           : t('patchbayPointerHint')}
       </span>
     </div>
-    <div class="patchbay-interaction-strip__shortcuts">
-      <span><kbd>Tab</kbd>{t('moveTargets')}</span>
-      <span><kbd>Enter</kbd>{t('connectTarget')}</span>
-      <span><kbd>Esc</kbd>{t('cancelSelection')}</span>
+    <div class="patchbay-interaction-strip__controls">
+      <label class="patchbay-filter-switch" data-testid="hide-inactive-nodes-control">
+        <span>{t('hideInactiveNodes')}</span>
+        <input
+          class="patchbay-filter-switch__input"
+          type="checkbox"
+          role="switch"
+          checked={hideInactiveNodes}
+          aria-label={t('hideInactiveNodes')}
+          data-testid="hide-inactive-nodes-toggle"
+          onchange={onHideInactiveNodesChange}
+        />
+        <span class="patchbay-filter-switch__track" aria-hidden="true"><i></i></span>
+      </label>
+      <div class="patchbay-interaction-strip__shortcuts">
+        <span><kbd>Tab</kbd>{t('moveTargets')}</span>
+        <span><kbd>Enter</kbd>{t('connectTarget')}</span>
+        <span><kbd>Esc</kbd>{t('cancelSelection')}</span>
+      </div>
     </div>
   </div>
   <div
@@ -325,7 +342,7 @@
                 {onSelectNode}
               />
             {:else}
-              <p class="column-empty">{t('emptyGraph')}</p>
+              <p class="column-empty">{t(hideInactiveNodes ? 'noActiveNodes' : 'emptyGraph')}</p>
             {/each}
           </div>
         </section>

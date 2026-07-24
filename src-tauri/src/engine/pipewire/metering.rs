@@ -46,7 +46,7 @@ use crate::model::OutputLevel;
 
 const OUTPUT_METER_INTERVAL: Duration = Duration::from_millis(32);
 pub(super) const OUTPUT_SPECTRUM_BANDS: usize = 32;
-const OUTPUT_SPECTRUM_WINDOW: usize = 2_048;
+const OUTPUT_SPECTRUM_WINDOW: usize = 4_096;
 const OUTPUT_SPECTRUM_MIN_FREQUENCY: f32 = 30.0;
 const OUTPUT_SPECTRUM_MAX_FREQUENCY: f32 = 20_000.0;
 const OUTPUT_SPECTRUM_RELEASE: f32 = 0.78;
@@ -67,6 +67,7 @@ struct MeterUserData {
     sample_cursor: usize,
     sample_count: usize,
     last_emit: Instant,
+    pending_peak: f32,
     last_peak: f32,
     last_left_spectrum: [f32; OUTPUT_SPECTRUM_BANDS],
     last_right_spectrum: [f32; OUTPUT_SPECTRUM_BANDS],
@@ -188,6 +189,7 @@ fn create_output_meter(
         sample_cursor: 0,
         sample_count: 0,
         last_emit: Instant::now() - OUTPUT_METER_INTERVAL,
+        pending_peak: 0.0,
         last_peak: 0.0,
         last_left_spectrum: [0.0; OUTPUT_SPECTRUM_BANDS],
         last_right_spectrum: [0.0; OUTPUT_SPECTRUM_BANDS],
@@ -205,6 +207,7 @@ fn create_output_meter(
                     .chain(user_data.last_right_spectrum.iter())
                     .any(|band| *band > 0.0))
             {
+                user_data.pending_peak = 0.0;
                 user_data.last_peak = 0.0;
                 user_data.last_left_spectrum = [0.0; OUTPUT_SPECTRUM_BANDS];
                 user_data.last_right_spectrum = [0.0; OUTPUT_SPECTRUM_BANDS];
@@ -247,16 +250,18 @@ fn create_output_meter(
             let Some(data) = buffer.datas_mut().first_mut() else {
                 return;
             };
-            let byte_count = data.chunk().size() as usize;
+            let byte_offset = data.chunk().offset();
+            let byte_count = data.chunk().size();
             let Some(bytes) = data.data() else {
                 return;
             };
+            let bytes = audio_chunk(bytes, byte_offset, byte_count);
             let channels = usize::try_from(user_data.format.channels())
                 .unwrap_or(1)
                 .max(1);
             let frame_size = mem::size_of::<f32>() * channels;
             let mut peak = 0.0_f32;
-            for frame in bytes[..byte_count.min(bytes.len())].chunks_exact(frame_size) {
+            for frame in bytes.chunks_exact(frame_size) {
                 let (left, right, frame_peak) = decode_stereo_frame(frame);
                 peak = peak.max(frame_peak);
                 user_data.left_samples[user_data.sample_cursor] = left;
@@ -264,12 +269,14 @@ fn create_output_meter(
                 user_data.sample_cursor = (user_data.sample_cursor + 1) % OUTPUT_SPECTRUM_WINDOW;
                 user_data.sample_count = (user_data.sample_count + 1).min(OUTPUT_SPECTRUM_WINDOW);
             }
-            peak = peak.clamp(0.0, 4.0);
-            user_data.last_peak = peak;
+            user_data.pending_peak = accumulate_peak(user_data.pending_peak, peak);
             if user_data.last_emit.elapsed() < OUTPUT_METER_INTERVAL {
                 return;
             }
             user_data.last_emit = Instant::now();
+            let peak = user_data.pending_peak;
+            user_data.pending_peak = 0.0;
+            user_data.last_peak = peak;
             let sample_rate = user_data.format.rate();
             let (left_spectrum, right_spectrum) =
                 if user_data.sample_count == OUTPUT_SPECTRUM_WINDOW && sample_rate > 0 {
@@ -334,6 +341,16 @@ fn create_output_meter(
         _listener: listener,
         _stream: stream,
     })
+}
+
+fn audio_chunk(bytes: &[u8], byte_offset: u32, byte_count: u32) -> &[u8] {
+    let start = (byte_offset as usize).min(bytes.len());
+    let end = start.saturating_add(byte_count as usize).min(bytes.len());
+    &bytes[start..end]
+}
+
+fn accumulate_peak(pending_peak: f32, buffer_peak: f32) -> f32 {
+    pending_peak.max(buffer_peak).clamp(0.0, 4.0)
 }
 
 fn decode_stereo_frame(frame: &[u8]) -> (f32, f32, f32) {
@@ -456,9 +473,27 @@ fn calculate_output_spectrum(
 #[cfg(test)]
 mod spectrum_tests {
     use super::{
-        calculate_output_spectrum, decode_stereo_frame, OUTPUT_SPECTRUM_BANDS,
-        OUTPUT_SPECTRUM_WINDOW,
+        accumulate_peak, audio_chunk, calculate_output_spectrum, decode_stereo_frame,
+        OUTPUT_SPECTRUM_BANDS, OUTPUT_SPECTRUM_WINDOW,
     };
+
+    #[test]
+    fn meter_reads_only_the_valid_pipewire_chunk() {
+        let bytes = [9_u8, 9, 1, 2, 3, 4, 8, 8];
+
+        assert_eq!(audio_chunk(&bytes, 2, 4), &[1, 2, 3, 4]);
+        assert_eq!(audio_chunk(&bytes, 6, 20), &[8, 8]);
+        assert!(audio_chunk(&bytes, 20, 4).is_empty());
+    }
+
+    #[test]
+    fn meter_retains_the_highest_transient_until_the_next_update() {
+        let pending_peak = accumulate_peak(0.0, 0.9);
+        let pending_peak = accumulate_peak(pending_peak, 0.2);
+
+        assert_eq!(pending_peak, 0.9);
+        assert_eq!(accumulate_peak(pending_peak, 8.0), 4.0);
+    }
 
     #[test]
     fn meter_keeps_left_and_right_samples_separate() {

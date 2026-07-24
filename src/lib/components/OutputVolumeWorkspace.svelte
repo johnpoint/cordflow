@@ -4,6 +4,7 @@
   import type { NodeDto } from '../generated/graph';
   import { nodeDisplayName } from '../graph/connection';
   import type { MessageKey } from '../i18n';
+  import type { MixerVolumeView } from '../workspace';
   import ApplicationVolumeList from './ApplicationVolumeList.svelte';
 
   export let nodes: NodeDto[];
@@ -12,6 +13,7 @@
   export let defaultAudioSinkName: string | null;
   export let pendingNodeIds: Set<number>;
   export let pendingDefaultNodeId: number | null;
+  export let mixerVolumeView: MixerVolumeView;
   export let t: (key: MessageKey, values?: Record<string, string | number>) => string;
   export let onSetVolume: (nodeId: number, volumePercent: number) => void;
   export let onSetMuted: (nodeId: number, muted: boolean) => void;
@@ -19,14 +21,9 @@
   export let onSetApplicationVolume: (applicationId: string, volumePercent: number) => void;
   export let onSetApplicationMuted: (applicationId: string, muted: boolean) => void;
 
-  type MixerVolumeView = 'devices' | 'applications';
   const volumeUpdateInterval = 80;
   const boostWarningStorageKey = 'cordflow.output-volume-boost-warning-seen';
   const legacyBoostWarningStorageKey = 'helvum-next.output-volume-boost-warning-seen';
-  const mixerVolumeViewStorageKey = 'cordflow.mixer-volume-view';
-  const storedMixerVolumeView = localStorage.getItem(mixerVolumeViewStorageKey);
-  let mixerVolumeView: MixerVolumeView =
-    storedMixerVolumeView === 'applications' ? 'applications' : 'devices';
   let previewVolumes: Record<number, number | undefined> = {};
   let boostHintNodeId: number | null = null;
   let boostHintTimer = 0;
@@ -176,11 +173,6 @@
     onSetDefault(nodeId);
   }
 
-  function changeMixerVolumeView(view: MixerVolumeView): void {
-    mixerVolumeView = view;
-    localStorage.setItem(mixerVolumeViewStorageKey, view);
-  }
-
   function deviceTypeLabel(node: NodeDto): MessageKey {
     const identity =
       `${node.name ?? ''} ${node.mediaName ?? ''} ${node.objectName ?? ''}`.toLowerCase();
@@ -220,37 +212,6 @@
   aria-label={t('outputVolumes')}
   data-testid="output-volume-workspace"
 >
-  <div class="mixer-volume-tabs" role="tablist" aria-label={t('mixerVolumeViews')}>
-    <button
-      id="mixer-device-volume-tab"
-      class:mixer-volume-tabs__tab--active={mixerVolumeView === 'devices'}
-      class="mixer-volume-tabs__tab"
-      type="button"
-      role="tab"
-      aria-selected={mixerVolumeView === 'devices'}
-      aria-controls="mixer-device-volume-panel"
-      data-testid="mixer-device-volume-tab"
-      onclick={() => changeMixerVolumeView('devices')}
-    >
-      <span aria-hidden="true">[O]</span>
-      {t('deviceVolumes')}
-    </button>
-    <button
-      id="mixer-application-volume-tab"
-      class:mixer-volume-tabs__tab--active={mixerVolumeView === 'applications'}
-      class="mixer-volume-tabs__tab"
-      type="button"
-      role="tab"
-      aria-selected={mixerVolumeView === 'applications'}
-      aria-controls="mixer-application-volume-panel"
-      data-testid="mixer-application-volume-tab"
-      onclick={() => changeMixerVolumeView('applications')}
-    >
-      <span aria-hidden="true">[A]</span>
-      {t('applicationVolumes')}
-    </button>
-  </div>
-
   {#if mixerVolumeView === 'devices'}
     <div
       id="mixer-device-volume-panel"

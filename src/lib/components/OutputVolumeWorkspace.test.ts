@@ -35,6 +35,7 @@ describe('OutputVolumeWorkspace', () => {
         defaultAudioSinkName: 'alsa_output.pci',
         pendingNodeIds: new Set<number>(),
         pendingDefaultNodeId: null,
+        mixerVolumeView: 'devices',
         t,
         onSetVolume,
         onSetMuted,
@@ -114,6 +115,7 @@ describe('OutputVolumeWorkspace', () => {
         defaultAudioSinkName: 'alsa_output.pci',
         pendingNodeIds: new Set<number>(),
         pendingDefaultNodeId: null,
+        mixerVolumeView: 'devices',
         t,
         onSetVolume: vi.fn(),
         onSetMuted: vi.fn(),
@@ -163,6 +165,7 @@ describe('OutputVolumeWorkspace', () => {
         defaultAudioSinkName: null,
         pendingNodeIds: new Set<number>(),
         pendingDefaultNodeId: null,
+        mixerVolumeView: 'devices',
         t: tZh,
         onSetVolume: vi.fn(),
         onSetMuted: vi.fn(),
@@ -181,58 +184,55 @@ describe('OutputVolumeWorkspace', () => {
     expect(hdmiMarker.getAttribute('aria-label')).toBe('HDMI');
   });
 
-  it('switches between device and remembered application volume tabs', async () => {
+  it('renders the selected device or remembered application volume panel', async () => {
     const onSetApplicationVolume = vi.fn();
     const onSetApplicationMuted = vi.fn();
-    const { getByTestId, queryByTestId } = render(OutputVolumeWorkspace, {
-      props: {
-        nodes: [
-          {
-            id: 3,
-            name: 'alsa_output.pci',
-            mediaName: 'Built-in Audio',
-            mediaClass: 'Audio/Sink',
-            objectName: 'alsa_output.pci',
-            kind: 'input',
-            volumePercent: 65,
-            muted: false,
-          },
-        ],
-        applications: [
-          {
-            id: 'org.mozilla.firefox',
-            name: 'Firefox',
-            volumePercent: 35,
-            muted: false,
-            lastSeenAt: Date.now(),
-            active: false,
-            nodeIds: [],
-          },
-        ],
-        outputLevels: {},
-        defaultAudioSinkName: 'alsa_output.pci',
-        pendingNodeIds: new Set<number>(),
-        pendingDefaultNodeId: null,
-        t,
-        onSetVolume: vi.fn(),
-        onSetMuted: vi.fn(),
-        onSetDefault: vi.fn(),
-        onSetApplicationVolume,
-        onSetApplicationMuted,
-      },
-    });
+    const props = {
+      nodes: [
+        {
+          id: 3,
+          name: 'alsa_output.pci',
+          mediaName: 'Built-in Audio',
+          mediaClass: 'Audio/Sink',
+          objectName: 'alsa_output.pci',
+          kind: 'input' as const,
+          volumePercent: 65,
+          muted: false,
+        },
+      ],
+      applications: [
+        {
+          id: 'org.mozilla.firefox',
+          name: 'Firefox',
+          volumePercent: 35,
+          muted: false,
+          lastSeenAt: Date.now(),
+          active: false,
+          nodeIds: [],
+        },
+      ],
+      outputLevels: {},
+      defaultAudioSinkName: 'alsa_output.pci',
+      pendingNodeIds: new Set<number>(),
+      pendingDefaultNodeId: null,
+      mixerVolumeView: 'devices' as const,
+      t,
+      onSetVolume: vi.fn(),
+      onSetMuted: vi.fn(),
+      onSetDefault: vi.fn(),
+      onSetApplicationVolume,
+      onSetApplicationMuted,
+    };
+    const { getByTestId, queryByTestId, rerender } = render(OutputVolumeWorkspace, { props });
 
-    expect(getByTestId('mixer-device-volume-tab').getAttribute('aria-selected')).toBe('true');
     expect(getByTestId('output-volume-device-3')).toBeTruthy();
     expect(queryByTestId('application-volume-org-mozilla-firefox')).toBeNull();
 
-    await fireEvent.click(getByTestId('mixer-application-volume-tab'));
-    expect(getByTestId('mixer-application-volume-tab').getAttribute('aria-selected')).toBe('true');
+    await rerender({ ...props, mixerVolumeView: 'applications' });
     expect(queryByTestId('output-volume-device-3')).toBeNull();
     expect(getByTestId('application-volume-org-mozilla-firefox').textContent).toContain(
       'Remembered',
     );
-    expect(localStorage.getItem('cordflow.mixer-volume-view')).toBe('applications');
 
     await fireEvent.input(getByTestId('application-volume-slider-org-mozilla-firefox'), {
       target: { value: '28' },
@@ -262,6 +262,7 @@ describe('OutputVolumeWorkspace', () => {
         defaultAudioSinkName: null,
         pendingNodeIds: new Set([11]),
         pendingDefaultNodeId: null,
+        mixerVolumeView: 'applications',
         t,
         onSetVolume: vi.fn(),
         onSetMuted: vi.fn(),
@@ -271,7 +272,6 @@ describe('OutputVolumeWorkspace', () => {
       },
     });
 
-    await fireEvent.click(getByTestId('mixer-application-volume-tab'));
     const slider = getByTestId('application-volume-slider-org-mozilla-firefox') as HTMLInputElement;
     const number = getByTestId('application-volume-number-org-mozilla-firefox') as HTMLInputElement;
     const reset = getByTestId('application-volume-reset-org-mozilla-firefox') as HTMLButtonElement;

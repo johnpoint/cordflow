@@ -2,7 +2,7 @@
   import { Plus } from '@lucide/svelte';
   import type { GraphStatus } from '../generated/graph';
   import type { MessageKey } from '../i18n';
-  import type { WorkspaceId } from '../workspace';
+  import type { MixerVolumeView, WorkspaceId } from '../workspace';
 
   export let workspaceView: WorkspaceId;
   export let advancedModeEnabled: boolean;
@@ -10,8 +10,10 @@
   export let nodeCount: number;
   export let portCount: number;
   export let linkCount: number;
+  export let mixerVolumeView: MixerVolumeView;
   export let t: (key: MessageKey, values?: Record<string, string | number>) => string;
   export let onChangeWorkspace: (workspace: WorkspaceId) => void;
+  export let onChangeMixerVolumeView: (view: MixerVolumeView) => void;
   export let onOpenFlowBuilder: (trigger: HTMLElement) => void;
 </script>
 
@@ -27,7 +29,6 @@
       data-testid="view-output-volumes"
       onclick={() => onChangeWorkspace('mixer')}
     >
-      <span class="workspace-nav__marker" aria-hidden="true">[=]</span>
       <span><strong>{t('outputVolumes')}</strong><small>{t('outputMixerDescription')}</small></span>
     </button>
     <button
@@ -51,14 +52,42 @@
         data-testid="view-port-topology"
         onclick={() => onChangeWorkspace('patchbay')}
       >
-        <span class="workspace-nav__marker" aria-hidden="true">[:]</span>
         <span
           ><strong>{t('advancedPatchbay')}</strong><small>{t('patchbayDescription')}</small></span
         >
       </button>
     {/if}
   </nav>
-  {#if workspaceView === 'patchbay'}
+  {#if workspaceView === 'mixer'}
+    <div class="mixer-volume-tabs" role="tablist" aria-label={t('mixerVolumeViews')}>
+      <button
+        id="mixer-device-volume-tab"
+        class:mixer-volume-tabs__tab--active={mixerVolumeView === 'devices'}
+        class="mixer-volume-tabs__tab"
+        type="button"
+        role="tab"
+        aria-selected={mixerVolumeView === 'devices'}
+        aria-controls="mixer-device-volume-panel"
+        data-testid="mixer-device-volume-tab"
+        onclick={() => onChangeMixerVolumeView('devices')}
+      >
+        {t('deviceVolumes')}
+      </button>
+      <button
+        id="mixer-application-volume-tab"
+        class:mixer-volume-tabs__tab--active={mixerVolumeView === 'applications'}
+        class="mixer-volume-tabs__tab"
+        type="button"
+        role="tab"
+        aria-selected={mixerVolumeView === 'applications'}
+        aria-controls="mixer-application-volume-panel"
+        data-testid="mixer-application-volume-tab"
+        onclick={() => onChangeMixerVolumeView('applications')}
+      >
+        {t('applicationVolumes')}
+      </button>
+    </div>
+  {:else if workspaceView === 'patchbay'}
     <div
       class="workspace-sidebar__metrics"
       aria-label={t('graphSummary')}
@@ -68,8 +97,7 @@
       <span>{t('portsCount', { count: portCount })}</span>
       <span>{t('linksCount', { count: linkCount })}</span>
     </div>
-  {/if}
-  {#if workspaceView === 'flows'}
+  {:else if workspaceView === 'flows'}
     <button
       class="button button--small workspace-sidebar__action"
       type="button"

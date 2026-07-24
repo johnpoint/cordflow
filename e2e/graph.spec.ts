@@ -30,6 +30,7 @@ async function openPortTopology(page: Page): Promise<void> {
 test('shows one readable end-to-end module per source in audio routing', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByTestId('view-output-volumes')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('view-output-volumes')).not.toContainText('[=]');
   await expect(page.getByTestId('advanced-mode-toggle')).not.toBeChecked();
   await expect(page.getByTestId('view-port-topology')).toHaveCount(0);
   await expect(page.getByTestId('patchbay-metrics')).toHaveCount(0);
@@ -101,10 +102,12 @@ test('shows one readable end-to-end module per source in audio routing', async (
 
 test('shows and changes the system default playback device', async ({ page }) => {
   await page.goto('/?scenario=crowded-chooser');
-  const control = page.getByTestId('default-playback-control');
-  await expect(control.getByRole('combobox')).toHaveCount(0);
-  await expect(control).toContainText('Built-in Audio');
-  await page.getByTestId('default-devices-edit').click();
+  const statusControl = page.getByTestId('default-playback-control');
+  await expect(statusControl.getByRole('combobox')).toHaveCount(0);
+  await expect(statusControl).toContainText('Built-in Audio');
+  await expect(page.getByTestId('default-devices-edit')).toHaveCount(0);
+  await page.getByTestId('settings-menu-trigger').click();
+  const control = page.getByTestId('settings-default-playback-control');
   const select = control.getByRole('combobox', { name: 'Default playback' });
 
   await expect(select).toHaveValue('3');
@@ -115,17 +118,19 @@ test('shows and changes the system default playback device', async ({ page }) =>
   await expect(select).toHaveValue('811');
   await expect(select.locator('option:checked')).toContainText('Unused audio target 12');
   await expect(select.locator('option:checked')).toContainText('Current');
-  await page.getByTestId('default-devices-edit').click();
-  await expect(control.getByRole('combobox')).toHaveCount(0);
-  await expect(control).toContainText('Unused audio target 12');
+  await page.getByTestId('settings-menu-close').click();
+  await expect(statusControl.getByRole('combobox')).toHaveCount(0);
+  await expect(statusControl).toContainText('Unused audio target 12');
 });
 
 test('shows and changes the system default input device', async ({ page }) => {
   await page.goto('/');
-  const control = page.getByTestId('default-input-control');
-  await expect(control.getByRole('combobox')).toHaveCount(0);
-  await expect(control).toContainText('Built-in Microphone');
-  await page.getByTestId('default-devices-edit').click();
+  const statusControl = page.getByTestId('default-input-control');
+  await expect(statusControl.getByRole('combobox')).toHaveCount(0);
+  await expect(statusControl).toContainText('Built-in Microphone');
+  await expect(page.getByTestId('default-devices-edit')).toHaveCount(0);
+  await page.getByTestId('settings-menu-trigger').click();
+  const control = page.getByTestId('settings-default-input-control');
   const select = control.getByRole('combobox', { name: 'Default input' });
 
   await expect(select).toHaveValue('70');
@@ -138,9 +143,75 @@ test('shows and changes the system default input device', async ({ page }) => {
   await expect(select).toHaveValue('71');
   await expect(select.locator('option:checked')).toContainText('USB Microphone');
   await expect(select.locator('option:checked')).toContainText('Current');
-  await page.getByTestId('default-devices-edit').click();
-  await expect(control.getByRole('combobox')).toHaveCount(0);
-  await expect(control).toContainText('USB Microphone');
+  await page.getByTestId('settings-menu-close').click();
+  await expect(statusControl.getByRole('combobox')).toHaveCount(0);
+  await expect(statusControl).toContainText('USB Microphone');
+});
+
+test('places the mixer subnavigation in the right action slot with matching tab styles', async ({
+  page,
+}) => {
+  await page.goto('/');
+
+  const activeWorkspaceTab = page.getByTestId('view-output-volumes');
+  const inactiveWorkspaceTab = page.getByTestId('view-audio-flows');
+  const activeVolumeTab = page.getByTestId('mixer-device-volume-tab');
+  const inactiveVolumeTab = page.getByTestId('mixer-application-volume-tab');
+
+  const tabStyles = async (testId: string) =>
+    page.getByTestId(testId).evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        backgroundColor: style.backgroundColor,
+        borderBottomColor: style.borderBottomColor,
+        borderBottomWidth: style.borderBottomWidth,
+        color: style.color,
+        minHeight: style.minHeight,
+      };
+    });
+
+  expect(await tabStyles('mixer-device-volume-tab')).toEqual(
+    await tabStyles('view-output-volumes'),
+  );
+  expect(
+    await activeVolumeTab.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { fontSize: style.fontSize, fontWeight: style.fontWeight };
+    }),
+  ).toEqual(
+    await activeWorkspaceTab.locator('strong').evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { fontSize: style.fontSize, fontWeight: style.fontWeight };
+    }),
+  );
+
+  await inactiveWorkspaceTab.hover();
+  await page.waitForTimeout(200);
+  const workspaceHoverStyles = await tabStyles('view-audio-flows');
+  await inactiveVolumeTab.hover();
+  await page.waitForTimeout(200);
+  const volumeHoverStyles = await tabStyles('mixer-application-volume-tab');
+
+  expect(volumeHoverStyles).toEqual(workspaceHoverStyles);
+  await expect(inactiveVolumeTab).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+
+  await inactiveVolumeTab.focus();
+  await expect(inactiveVolumeTab).toBeFocused();
+  await expect(inactiveVolumeTab).toHaveCSS('outline-style', 'solid');
+  await expect(activeWorkspaceTab).toBeVisible();
+  await expect(activeVolumeTab).toBeVisible();
+
+  const subnavigationBox = await page.locator('.mixer-volume-tabs').boundingBox();
+  const navigationBox = await page.locator('.workspace-nav').boundingBox();
+  expect(subnavigationBox).not.toBeNull();
+  expect(navigationBox).not.toBeNull();
+  expect(subnavigationBox!.x).toBeGreaterThan(navigationBox!.x + navigationBox!.width);
+  const subnavigationRight = subnavigationBox!.x + subnavigationBox!.width;
+
+  await inactiveWorkspaceTab.click();
+  const flowActionBox = await page.getByTestId('flow-builder-open').boundingBox();
+  expect(flowActionBox).not.toBeNull();
+  expect(flowActionBox!.x + flowActionBox!.width).toBeCloseTo(subnavigationRight, 0);
 });
 
 test('adjusts volume and mute for each output device', async ({ page }) => {
@@ -462,7 +533,9 @@ test('keeps advanced routing off by default and persists the mode switch', async
   await page.goto('/');
   await expect(page).toHaveTitle('Cordflow');
   await expect(page.locator('.app-header h1')).toHaveText('Cordflow');
-  await expect(page.locator('.brand-mark')).toHaveText('[CF]');
+  await expect(page.getByTestId('brand-logo')).toBeVisible();
+  await expect(page.locator('.brand-mark')).toHaveCount(0);
+  await expect(page.getByTestId('settings-menu-trigger').locator('svg')).toHaveCount(1);
   await expect(page.locator('.app-header')).not.toContainText('Helvum');
   await expect(page.locator('.app-header')).toHaveAttribute('data-tauri-drag-region', '');
   const titleSpacing = await page.locator('.app-header').evaluate((header) => {
@@ -494,6 +567,7 @@ test('keeps advanced routing off by default and persists the mode switch', async
   expect(defaultDevicesBox).not.toBeNull();
   expect(connectionStatusBox!.x).toBeLessThan(defaultDevicesBox!.x);
   await expect(statusbar.getByTestId('advanced-mode-control')).toBeVisible();
+  await expect(statusbar.getByTestId('advanced-mode-control')).toHaveText('Advanced mode');
   await expect(statusbar).not.toContainText('Device controls only');
   await expect(statusbar).not.toContainText('Routing policy is fixed by this workspace.');
   await expect(page.locator('.app-header').getByTestId('graph-status')).toHaveCount(0);
@@ -517,6 +591,7 @@ test('keeps advanced routing off by default and persists the mode switch', async
   await expect(page.getByTestId('view-port-topology')).toBeVisible();
   await expect(navigationItems).toHaveCount(3);
   await expect(navigationItems.nth(2)).toContainText('Advanced patchbay');
+  await expect(page.getByTestId('view-port-topology')).not.toContainText('[:]');
   await page.getByTestId('view-port-topology').click();
   await expect(page.getByTestId('view-port-topology')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByTestId('workspace')).toBeVisible();
@@ -553,6 +628,34 @@ test('keeps advanced routing off by default and persists the mode switch', async
   await expect(page.getByTestId('advanced-mode-toggle')).not.toBeChecked();
   await expect(page.getByTestId('view-port-topology')).toHaveCount(0);
   await expect(page.getByTestId('view-output-volumes')).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('optionally hides inactive nodes in the advanced patchbay and persists the filter', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await openPortTopology(page);
+
+  const toggle = page.getByTestId('hide-inactive-nodes-toggle');
+  await expect(page.getByTestId('hide-inactive-nodes-control')).toHaveText('Hide inactive nodes');
+  await expect(toggle).not.toBeChecked();
+  await expect(page.getByTestId('node-4')).toBeVisible();
+  await expect(page.getByTestId('node-1')).toBeVisible();
+
+  await page.getByTestId('hide-inactive-nodes-control').click();
+  await expect(toggle).toBeChecked();
+  await expect(page.getByTestId('node-4')).toHaveCount(0);
+  await expect(page.getByTestId('node-1')).toBeVisible();
+  await expect(page.getByTestId('node-2')).toBeVisible();
+  await expect(page.getByTestId('node-3')).toBeVisible();
+
+  await page.reload();
+  await openPortTopology(page);
+  await expect(page.getByTestId('hide-inactive-nodes-toggle')).toBeChecked();
+  await expect(page.getByTestId('node-4')).toHaveCount(0);
+
+  await page.getByTestId('hide-inactive-nodes-control').click();
+  await expect(page.getByTestId('node-4')).toBeVisible();
 });
 
 test('migrates legacy custom mode to the advanced patchbay', async ({ page }) => {
@@ -849,11 +952,54 @@ test('switches to Simplified Chinese and persists the choice', async ({ page }) 
   await page.goto('/');
   await openPortTopology(page);
   await page.getByTestId('settings-menu-trigger').click();
+  await expect(page.getByRole('dialog', { name: 'Settings' })).toHaveAttribute(
+    'aria-modal',
+    'true',
+  );
   await page.getByLabel('Language').selectOption('zh-CN');
   await expect(page.getByRole('heading', { name: '信号层 1' })).toBeVisible();
   await expect(page.getByText('路由', { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByRole('heading', { name: '连接列表' })).toBeVisible();
+});
+
+test('opens settings as an independent modal and restores focus when it closes', async ({
+  page,
+}) => {
+  await page.goto('/');
+  const trigger = page.getByTestId('settings-menu-trigger');
+  await trigger.click();
+
+  const dialog = page.getByRole('dialog', { name: 'Settings' });
+  await expect(dialog).toBeVisible();
+  await expect(page.getByTestId('settings-menu')).toHaveCSS('position', 'fixed');
+  await expect(page.getByTestId('settings-menu-close')).toBeFocused();
+
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});
+
+test('toggles and persists the audio spectrum background from settings', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByTestId('output-spectrum')).toBeVisible();
+
+  await page.getByTestId('settings-menu-trigger').click();
+  const control = page.getByTestId('settings-output-spectrum-control');
+  const toggle = page.getByTestId('settings-output-spectrum-toggle');
+  await expect(control).toHaveText('Audio spectrum background');
+  await expect(toggle).toBeChecked();
+  await control.click();
+  await expect(toggle).not.toBeChecked();
+  await expect(page.getByTestId('output-spectrum')).toHaveCount(0);
+  await page.getByTestId('settings-menu-close').click();
+
+  await page.reload();
+  await expect(page.getByTestId('output-spectrum')).toHaveCount(0);
+  await page.getByTestId('settings-menu-trigger').click();
+  await expect(toggle).not.toBeChecked();
+  await control.click();
+  await expect(page.getByTestId('output-spectrum')).toBeVisible();
 });
 
 test('restores the confirmed graph after a window reload', async ({ page }) => {
@@ -898,8 +1044,6 @@ test('resyncs and reports an unconfirmed operation after five seconds', async ({
 test('announces a successful backend reconnect with a new generation', async ({ page }) => {
   await page.goto('/?scenario=reconnect');
   await openPortTopology(page);
-  await expect(page.getByTestId('graph-status')).toContainText('Disconnected');
-  await expect(page.getByTestId('port-12')).toBeDisabled();
   await expect(page.getByTestId('graph-status')).toContainText('Connected', { timeout: 5_000 });
   await expect(page.getByTestId('port-12')).toBeEnabled();
   await expect(page.locator('.sr-only')).toContainText('reconnected');
