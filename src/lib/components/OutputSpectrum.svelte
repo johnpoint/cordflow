@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import type { NodeDto, OutputLevel } from '../generated/graph';
   import { nodeDisplayName } from '../graph/connection';
   import type { MessageKey } from '../i18n';
@@ -14,7 +15,6 @@
   const minimumDecibels = -72;
   const maximumDecibels = 0;
   const spectrumBandCount = 32;
-  const contourRiseMomentum = 0.3;
   const contourReleaseDurationMs = 700;
   const contourReleaseExponent = 1.5;
   const contourSettleThreshold = 0.5;
@@ -27,8 +27,6 @@
   type SpectrumContour = {
     leftHeights: number[];
     rightHeights: number[];
-    leftSourceHeights: number[];
-    rightSourceHeights: number[];
     leftReleaseOrigins: number[];
     rightReleaseOrigins: number[];
     leftReleaseElapsedMs: number[];
@@ -41,6 +39,9 @@
   let trackedSpectrum: SpectrumChannels | undefined;
   let hasCurrentSpectrum = false;
   let lastSpectrumSampleAt: number | null = null;
+  let channelsElement: HTMLElement | null = null;
+  let contourAnimationFrame: number | null = null;
+  let lastContourAnimationAt: number | null = null;
 
   $: currentNode =
     nodes.find((node) => node.objectName === defaultAudioSinkName) ?? nodes.at(0) ?? null;
@@ -76,6 +77,64 @@
     currentFrame = emptyChannels;
     contour = null;
     lastSpectrumSampleAt = null;
+    lastContourAnimationAt = null;
+  }
+
+  function stopContourAnimationLoop(): void {
+    if (contourAnimationFrame !== null && typeof cancelAnimationFrame !== 'undefined') {
+      cancelAnimationFrame(contourAnimationFrame);
+    }
+    contourAnimationFrame = null;
+    lastContourAnimationAt = null;
+  }
+
+  function writeContourHeights(frame: SpectrumContour): void {
+    const writeHeights = (selector: string, heights: number[]): void => {
+      const bands = channelsElement?.querySelectorAll<HTMLElement>(selector);
+      heights.forEach((height, index) => {
+        const band = bands?.item(index);
+        if (band) band.style.height = `${height}%`;
+      });
+    };
+    writeHeights(
+      '.output-spectrum__contour-frame .output-spectrum__bands--left .output-spectrum__band',
+      frame.leftHeights,
+    );
+    writeHeights(
+      '.output-spectrum__contour-frame .output-spectrum__bands--right .output-spectrum__band',
+      frame.rightHeights,
+    );
+  }
+
+  function runContourAnimationFrame(timestamp: number): void {
+    contourAnimationFrame = null;
+    if (!hasCurrentSpectrum || !contour) {
+      lastContourAnimationAt = null;
+      return;
+    }
+
+    const elapsedMs =
+      lastContourAnimationAt === null
+        ? 0
+        : Math.min(50, Math.max(0, timestamp - lastContourAnimationAt));
+    lastContourAnimationAt = timestamp;
+    const currentHeights = renderedCurrentHeights(contour);
+    const nextContour = followContour(contour, currentHeights, elapsedMs);
+    writeContourHeights(nextContour);
+    contour = nextContour;
+    contourAnimationFrame = requestAnimationFrame(runContourAnimationFrame);
+  }
+
+  function ensureContourAnimationLoop(): void {
+    if (contourAnimationFrame !== null || typeof requestAnimationFrame === 'undefined') return;
+    contourAnimationFrame = requestAnimationFrame(runContourAnimationFrame);
+  }
+
+  onDestroy(stopContourAnimationLoop);
+
+  function updateContourWithoutAnimation(elapsedMs: number): void {
+    if (!contour) return;
+    contour = followContour(contour, frameHeights(currentFrame), elapsedMs);
   }
 
   function frameHeights(frame: SpectrumChannels): SpectrumContour {
@@ -84,12 +143,38 @@
     return {
       leftHeights,
       rightHeights,
-      leftSourceHeights: leftHeights,
-      rightSourceHeights: rightHeights,
       leftReleaseOrigins: leftHeights,
       rightReleaseOrigins: rightHeights,
       leftReleaseElapsedMs: Array(spectrumBandCount).fill(0),
       rightReleaseElapsedMs: Array(spectrumBandCount).fill(0),
+    };
+  }
+
+  function renderedCurrentHeights(fallback: SpectrumContour): SpectrumContour {
+    const channelHeight = channelsElement?.getBoundingClientRect().height ?? 0;
+    if (channelHeight <= 0) return fallback;
+
+    const renderedHeights = (selector: string, fallbackHeights: number[]): number[] => {
+      const bands = channelsElement?.querySelectorAll<HTMLElement>(selector);
+      return fallbackHeights.map((fallbackHeight, index) => {
+        const renderedHeight = bands?.item(index)?.getBoundingClientRect().height;
+        if (renderedHeight === undefined || !Number.isFinite(renderedHeight)) {
+          return fallbackHeight;
+        }
+        return Math.max(0, Math.min(100, (renderedHeight / channelHeight) * 100));
+      });
+    };
+
+    return {
+      ...fallback,
+      leftHeights: renderedHeights(
+        '.output-spectrum__current .output-spectrum__bands--left .output-spectrum__band',
+        fallback.leftHeights,
+      ),
+      rightHeights: renderedHeights(
+        '.output-spectrum__current .output-spectrum__bands--right .output-spectrum__band',
+        fallback.rightHeights,
+      ),
     };
   }
 
@@ -101,15 +186,12 @@
     const elapsed = Math.max(0, elapsedMs);
     const follow = (
       previousHeight: number,
-      previousSourceHeight: number,
       releaseOrigin: number,
       releaseElapsedMs: number,
       currentHeight: number,
     ): { height: number; origin: number; elapsedMs: number } => {
-      const rise = Math.max(0, currentHeight - previousSourceHeight);
-      const inertialRise = Math.min(100, currentHeight + rise * contourRiseMomentum);
-      if (inertialRise > previousHeight) {
-        return { height: inertialRise, origin: inertialRise, elapsedMs: 0 };
+      if (currentHeight > previousHeight) {
+        return { height: currentHeight, origin: currentHeight, elapsedMs: 0 };
       }
       if (previousHeight - currentHeight <= contourSettleThreshold) {
         return { height: currentHeight, origin: currentHeight, elapsedMs: 0 };
@@ -127,7 +209,6 @@
     const left = current.leftHeights.map((height, index) =>
       follow(
         previous.leftHeights[index] ?? height,
-        previous.leftSourceHeights[index] ?? height,
         previous.leftReleaseOrigins[index] ?? height,
         previous.leftReleaseElapsedMs[index] ?? 0,
         height,
@@ -136,7 +217,6 @@
     const right = current.rightHeights.map((height, index) =>
       follow(
         previous.rightHeights[index] ?? height,
-        previous.rightSourceHeights[index] ?? height,
         previous.rightReleaseOrigins[index] ?? height,
         previous.rightReleaseElapsedMs[index] ?? 0,
         height,
@@ -146,8 +226,6 @@
     return {
       leftHeights: left.map(({ height }) => height),
       rightHeights: right.map(({ height }) => height),
-      leftSourceHeights: current.leftHeights,
-      rightSourceHeights: current.rightHeights,
       leftReleaseOrigins: left.map(({ origin }) => origin),
       rightReleaseOrigins: right.map(({ origin }) => origin),
       leftReleaseElapsedMs: left.map(({ elapsedMs }) => elapsedMs),
@@ -175,13 +253,14 @@
     const nextFrame = normalizedFrame(spectrum);
     const nextHeights = frameHeights(nextFrame);
 
-    if (trackedNodeId !== nodeId) {
+    if (trackedNodeId !== nodeId || contour === null) {
       clearSpectrumContour(nodeId, spectrum);
       trackedSpectrum = spectrum;
       currentFrame = nextFrame;
       contour = nextHeights;
       hasCurrentSpectrum = true;
       lastSpectrumSampleAt = sampledAt;
+      ensureContourAnimationLoop();
       return;
     }
 
@@ -191,9 +270,12 @@
       lastSpectrumSampleAt === null ? 0 : Math.max(0, sampledAt - lastSpectrumSampleAt);
     trackedSpectrum = spectrum;
     currentFrame = nextFrame;
-    contour = contour ? followContour(contour, nextHeights, elapsedMs) : nextHeights;
+    if (typeof requestAnimationFrame === 'undefined') {
+      updateContourWithoutAnimation(elapsedMs);
+    }
     hasCurrentSpectrum = true;
     lastSpectrumSampleAt = sampledAt;
+    ensureContourAnimationLoop();
   }
 
   function amplitudeDecibels(amplitude: number): number {
@@ -221,7 +303,7 @@
     aria-label={t('stereoSpectrumFor', { name: currentNodeName })}
     data-testid="output-spectrum-plot"
   >
-    <div class="output-spectrum__channels" aria-hidden="true">
+    <div class="output-spectrum__channels" aria-hidden="true" bind:this={channelsElement}>
       <div class="output-spectrum__contour" data-testid="output-spectrum-contour">
         {#if contour}
           <div class="output-spectrum__contour-frame" data-testid="output-spectrum-contour-frame">

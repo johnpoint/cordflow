@@ -246,6 +246,7 @@ test('adjusts volume and mute for each output device', async ({ page }) => {
         return {
           backgroundColor: style.backgroundColor,
           opacity: style.opacity,
+          transitionDuration: style.transitionDuration,
         };
       }),
     ),
@@ -253,6 +254,7 @@ test('adjusts volume and mute for each output device', async ({ page }) => {
   expect(spectrumChannelStyles[0]).toEqual({
     backgroundColor: 'rgb(0, 86, 179)',
     opacity: '0.18',
+    transitionDuration: '0.08s',
   });
   expect(spectrumChannelStyles[1]).toEqual(spectrumChannelStyles[0]);
   await expect
@@ -277,29 +279,51 @@ test('adjusts volume and mute for each output device', async ({ page }) => {
         backgroundColor: style.backgroundColor,
         borderTopColor: style.borderTopColor,
         borderTopWidth: style.borderTopWidth,
+        transitionDuration: style.transitionDuration,
       };
     });
   expect(contourBandStyle).toEqual({
     backgroundColor: 'rgba(0, 0, 0, 0)',
     borderTopColor: 'rgb(0, 86, 179)',
     borderTopWidth: '2px',
+    transitionDuration: '0s',
   });
-  const contourNeverFallsBelowCurrent = await page
+  const contourMotion = await page
     .getByTestId('output-spectrum')
-    .evaluate((spectrumElement) => {
-      const contourBands = spectrumElement.querySelectorAll(
-        '.output-spectrum__contour-frame .output-spectrum__band',
-      );
-      const currentBands = spectrumElement.querySelectorAll(
-        '.output-spectrum__current .output-spectrum__band',
-      );
-      return [...contourBands].every(
-        (contourBand, index) =>
-          contourBand.getBoundingClientRect().top <=
-          (currentBands[index]?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY),
-      );
+    .evaluate(async (spectrumElement) => {
+      let neverBelowCurrent = true;
+      let previousContourTops: number[] | null = null;
+      const downwardFrames = Array(64).fill(0) as number[];
+      for (let frame = 0; frame < 30; frame += 1) {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        const contourBands = spectrumElement.querySelectorAll(
+          '.output-spectrum__contour-frame .output-spectrum__band',
+        );
+        const currentBands = spectrumElement.querySelectorAll(
+          '.output-spectrum__current .output-spectrum__band',
+        );
+        const contourTops = [...contourBands].map(
+          (contourBand) => contourBand.getBoundingClientRect().top,
+        );
+        neverBelowCurrent &&= [...contourBands].every(
+          (contourBand, index) =>
+            contourBand.getBoundingClientRect().top <=
+            (currentBands[index]?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY) + 1,
+        );
+        if (previousContourTops) {
+          contourTops.forEach((top, index) => {
+            if (top > previousContourTops![index]! + 0.01) downwardFrames[index] += 1;
+          });
+        }
+        previousContourTops = contourTops;
+      }
+      return {
+        neverBelowCurrent,
+        maximumDownwardFrames: Math.max(...downwardFrames),
+      };
     });
-  expect(contourNeverFallsBelowCurrent).toBe(true);
+  expect(contourMotion.neverBelowCurrent).toBe(true);
+  expect(contourMotion.maximumDownwardFrames).toBeGreaterThanOrEqual(5);
   await expect(page.getByTestId('output-spectrum-contour')).toHaveCSS('pointer-events', 'none');
   const spectrumBox = await spectrum.boundingBox();
   const mixerWorkspaceBox = await page.getByTestId('output-volume-workspace').boundingBox();

@@ -502,6 +502,9 @@ select:focus-visible,
   min-height: 1px;
   transition: height 80ms linear;
 }
+.output-spectrum__contour-frame .output-spectrum__band {
+  transition: none;
+}
 .output-volume-grid {
   display: grid;
   gap: 7px;
