@@ -1,108 +1,177 @@
 # Cordflow
 
-Cordflow is an accessible PipeWire audio router and output mixer focused on readable source-centred audio flows, a dynamic port-topology view, and complete mouse and keyboard paths for managing PipeWire links. It is an **unofficial derivative** of [Helvum](https://gitlab.freedesktop.org/pipewire/helvum); Cordflow is its own product name and is not affiliated with the upstream project.
+Cordflow is a Linux desktop application for managing PipeWire audio. It combines an
+output mixer, guided stereo routing, and an optional port-level patchbay in one
+keyboard-accessible interface.
 
-The MVP uses Tauri 2, Svelte 5, TypeScript, Rust, and `pipewire-rs`. It displays nodes and ports, creates persistent links with `object.linger=1`, removes links by registry ID, survives PipeWire reconnects, and exposes readable output, routing, and connection controls. English is the default language and Simplified Chinese is included.
+The interface is available in English and Simplified Chinese.
 
-Cordflow opens on **Output mixer**, followed by **Audio routing** and the optional
-**Advanced patchbay**. Advanced mode is off by default and only controls whether the manual
-per-port patchbay is available; it does not hide or change the ordinary workspaces. Default
-input and playback devices remain visible in the bottom bar and can be changed through the
-explicit Edit action.
+> [!IMPORTANT]
+> Cordflow is currently a source-development MVP. This repository does not yet publish
+> installers or distribution packages, so the application must be run or built from source.
+> Native mode connects to—and can change—the active PipeWire graph.
 
-Output mixer presents one row per output device with volume, mute, default-device actions,
-gain warnings, and live output level feedback. A device/application tab switches to
-per-application volume controls; recently observed applications remain available for seven
-days so short notification streams can still be adjusted after playback stops. The current
-default output also drives a real-time 32-band stereo spectrum with independently sampled left
-and right channels.
+Cordflow is an **unofficial derivative** of
+[Helvum](https://gitlab.freedesktop.org/pipewire/helvum). It is not affiliated with or
+endorsed by the Helvum or PipeWire maintainers.
 
-Audio routing matches stereo channels automatically. PipeWire's `audio.channel` metadata is
-preferred, with common FL/FR and left/right port names as a fallback. Paired links are
-presented as one stereo route and disconnect together from every ordinary routing entry point.
-When a processed source feeds multiple devices, the processing chain remains shared and each
-device is added as another downstream branch.
+## What you can do
 
-The guided creation workflow collects a complete route before changing PipeWire: choose an
-audio source, optionally add processors in signal order, select one or more output devices,
-then create the flow. Existing hops are reused and only missing stereo-aligned links are
-submitted. Advanced patchbay keeps drag, click, and complete keyboard paths for manual
-single-port routing without changing the automatic stereo policy used elsewhere.
+| Workspace             | Use it to                                                                                                                                                                |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Output mixer**      | Adjust device and application volume, mute outputs, choose the default output, and monitor live levels and a stereo spectrum.                                            |
+| **Audio routing**     | View source-centred signal flows and create routes from a source, through optional processors, to one or more output devices. Stereo channels are matched automatically. |
+| **Advanced patchbay** | Inspect the full PipeWire port topology and create individual port connections with a mouse or keyboard. Enable it with **Advanced mode** in the bottom bar.             |
 
-The native backend writes WirePlumber's configured default sink or source metadata and waits
-for the active default metadata update before the UI reports success. Default-device changes
-apply to newly auto-routed streams; they do not rewrite explicit links already shown in the
-graph.
+Cordflow also lets you change the system's default playback and input devices from the
+bottom bar. Application volume settings are remembered for seven days, including for
+short-lived streams such as notification sounds.
 
-> This project is not affiliated with or endorsed by the PipeWire or Helvum maintainers.
+## Run from source
 
-## Status
+Cordflow currently supports Linux with PipeWire and WirePlumber.
 
-This repository contains the source-development MVP. Packaging, presets, search, free-form
-layout, undo history, and general background route policies are intentionally out of scope.
-
-## Development
-
-System requirements on Linux:
+### Requirements
 
 - Rust 1.94 or newer
-- Node.js 22 or newer and pnpm 11
+- Node.js 22 or newer
+- pnpm 11
 - PipeWire development headers
-- PipeWire command-line tools and WirePlumber for the isolated live smoke test
-- WebKitGTK 4.1 and the standard Tauri 2 Linux prerequisites
+- WebKitGTK 4.1 and the standard
+  [Tauri 2 system dependencies](https://v2.tauri.app/start/prerequisites/)
+- A running PipeWire and WirePlumber session for native mode
 
-On Arch Linux, the relevant packages are provided by `base-devel`, `pipewire`,
+On Arch Linux, the required system libraries are provided by `base-devel`, `pipewire`,
 `wireplumber`, `webkit2gtk-4.1`, `gtk3`, `libayatana-appindicator`, and `librsvg`.
 
+### Start the native application
+
 ```sh
-pnpm install
+git clone https://github.com/johnpoint/cordflow.git
+cd cordflow
+pnpm install --frozen-lockfile
 ./scripts/start.sh
 ```
 
-The startup script launches the native application against the local PipeWire daemon by
-default. It installs JavaScript dependencies from the lockfile when they are missing.
-The same command is also available as `pnpm start`.
+The startup script connects Cordflow to your current PipeWire session. It also installs
+the locked JavaScript dependencies automatically if they are missing. The same startup
+command is available as `pnpm start`.
 
-To start the browser development server with its deterministic mock graph:
+To build an unbundled release binary instead:
+
+```sh
+pnpm build:tauri
+./src-tauri/target/release/cordflow
+```
+
+### Preview the interface without changing system audio
 
 ```sh
 ./scripts/start.sh --web
 ```
 
-On Linux, Cordflow disables WebKitGTK's DMA-BUF renderer before startup. This avoids
-empty gray windows on affected GBM/Wayland drivers while retaining native Wayland DPI
-scaling. Set `WEBKIT_DISABLE_DMABUF_RENDERER=0` explicitly to override the compatibility
-default when testing a driver update.
+Browser mode uses a deterministic mock audio graph. It is useful for exploring the
+interface or working on the frontend, but its controls do not affect PipeWire.
 
-On a scaled Wayland desktop, start the binary without `GDK_BACKEND=x11`. Forcing X11
-routes the window through XWayland and can bypass the compositor's DPI scale; the DMA-BUF
-fallback above already handles the gray-window issue while keeping native Wayland scaling.
+## First steps
 
-## Verification
+1. Open **Output mixer** to adjust output-device volume and mute state. Use the
+   **Application volume** tab for per-application controls.
+2. Open **Audio routing** and choose **Create audio flow** to connect a source to one or
+   more outputs. Processing nodes can be inserted in signal order.
+3. Use **Edit** in the bottom bar to change the default input or playback device.
+4. Open **Settings** to switch between English and Simplified Chinese. Use the
+   **Advanced mode** switch in the bottom bar to make the advanced patchbay available.
+
+In the advanced patchbay, drag between compatible ports or select a starting port and a
+highlighted target. With the keyboard, use <kbd>Tab</kbd> to move between compatible
+targets, <kbd>Enter</kbd> to connect, and <kbd>Esc</kbd> to cancel.
+
+## Behavior worth knowing
+
+- Routes created in the regular workspaces use PipeWire channel metadata to match stereo
+  pairs. Common FL/FR and left/right port names are used as a fallback.
+- A stereo route is shown as one route and both channels are disconnected together from
+  regular routing controls. The advanced patchbay works with individual ports.
+- When one processed source feeds multiple devices, Cordflow reuses the processing chain
+  and adds each device as a downstream branch.
+- Created links use `object.linger=1`, so they can remain after Cordflow closes. Remove a
+  route in Cordflow when you no longer want it.
+- Changing the default input or playback device affects newly auto-routed streams. It does
+  not rewrite explicit links that already exist in the graph.
+- Cordflow resynchronizes after PipeWire reconnects. While the backend is unavailable,
+  graph-changing controls remain unavailable.
+- Output volume can be raised above 100%; Cordflow warns because software gain may clip or
+  distort the signal.
+
+## Current scope
+
+This MVP focuses on inspecting the live graph, controlling output volume and defaults,
+and creating or removing routes. It does not yet include installers, presets, free-form
+graph layout, undo history, or general background routing policies.
+
+## Troubleshooting
+
+### The native window is empty or gray
+
+The startup script disables WebKitGTK's DMA-BUF renderer by default to avoid empty windows
+on affected GBM/Wayland drivers. To test your current driver without this compatibility
+setting, run:
 
 ```sh
-cargo fmt --manifest-path src-tauri/Cargo.toml --check
-cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
-cargo test --manifest-path src-tauri/Cargo.toml
+WEBKIT_DISABLE_DMABUF_RENDERER=0 ./scripts/start.sh
+```
+
+### The interface is incorrectly scaled on Wayland
+
+Do not launch Cordflow with `GDK_BACKEND=x11`. Forcing X11 sends the window through
+XWayland and can bypass the compositor's DPI scale. The startup script's DMA-BUF workaround
+keeps native Wayland scaling enabled.
+
+### Browser mode does not show my devices
+
+This is expected. `--web` always uses mock data; start the native application to connect to
+the local PipeWire graph.
+
+## Development and verification
+
+The application uses Tauri 2, Svelte 5, TypeScript, Rust, and `pipewire-rs`.
+
+Run the main frontend and Rust checks with:
+
+```sh
 pnpm security:check
 pnpm check
 pnpm lint
 pnpm test
 pnpm build
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+cargo test --manifest-path src-tauri/Cargo.toml
+```
+
+Additional end-to-end and integration checks are available:
+
+```sh
 pnpm test:e2e
 pnpm test:pipewire-live
 pnpm build:tauri
 ```
 
-`pnpm test:pipewire-live` starts its own PipeWire daemon under a temporary runtime
-directory. It creates only temporary one-channel nodes, verifies create/confirm,
-`object.linger=1` across an engine reopen, removal, daemon-loss retry, and reconnect
-generation behavior, then removes the entire temporary runtime. It never connects to
-or changes the desktop PipeWire daemon.
+`pnpm test:pipewire-live` creates an isolated temporary PipeWire daemon and temporary
+one-channel nodes. It verifies link creation, persistence, removal, retry, and reconnect
+behavior without connecting to or changing the desktop PipeWire daemon.
 
-The committed TypeScript IPC contract is generated from Rust `ts-rs` declarations with
-`pnpm types:generate` and checked for drift by `pnpm types:check`.
+The committed TypeScript IPC contract is generated from Rust `ts-rs` declarations:
+
+```sh
+pnpm types:generate
+pnpm types:check
+```
 
 ## License and provenance
 
-Cordflow is licensed under `GPL-3.0-only`. The PipeWire integration is derived from Helvum 0.6.2 at commit `e124603c1d15a8d6b51803068c01fcbb0f5d383a`; original notices are retained in adapted files. See [DERIVATION.md](DERIVATION.md) for exact provenance and modification notes.
+Cordflow is licensed under [`GPL-3.0-only`](LICENSE). Its PipeWire integration is derived
+from Helvum 0.6.2 at commit `e124603c1d15a8d6b51803068c01fcbb0f5d383a`;
+original notices are retained in adapted files. See [DERIVATION.md](DERIVATION.md) for
+exact provenance and modification notes.
