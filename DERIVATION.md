@@ -8,7 +8,14 @@ Cordflow (previously developed as Helvum Next) is an unofficial modified work ba
 - Upstream license: `GPL-3.0-only`
 - Original PipeWire implementation copyright: 2021 Tom A. Wagner
 
-The files under `src-tauri/src/engine/pipewire.rs` and `src-tauri/src/engine/items.rs` adapt the upstream `src/pipewire_connection/mod.rs` and `src/pipewire_connection/state.rs`. They retain the original copyright and license header and carry a prominent modification notice dated 2026.
+The files under `src-tauri/src/engine/pipewire/` adapt the upstream `src/pipewire_connection/mod.rs` and `src/pipewire_connection/state.rs`:
+
+- `mod.rs` contains the connection and retry lifecycle.
+- `adapter.rs` contains PipeWire command adaptation and volume POD serialization.
+- `registry.rs` contains registry state, proxy listeners, DTO conversion, and removal cleanup.
+- `metering.rs` contains output meter streams, stereo sampling, and spectrum analysis.
+
+Each derived file retains the original copyright and license header and carries a prominent modification notice dated 2026.
 
 `src-tauri/icons/icon.svg` is an exact copy of upstream `data/icons/org.pipewire.Helvum.svg`; `icon.png` is a mechanical raster conversion of that GPL-covered source asset.
 
