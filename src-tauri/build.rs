@@ -11,6 +11,10 @@ const COMMANDS: &[&str] = &[
 ];
 
 fn main() {
+    // `generate_context!` embeds this image as the default window and tray icon.
+    // Track it explicitly because a standalone asset edit must invalidate dev builds.
+    println!("cargo:rerun-if-changed=icons/icon.png");
+
     tauri_build::try_build(
         tauri_build::Attributes::new()
             .app_manifest(tauri_build::AppManifest::new().commands(COMMANDS)),

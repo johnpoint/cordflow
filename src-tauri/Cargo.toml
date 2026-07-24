@@ -11,6 +11,7 @@ description = "An accessible PipeWire audio router and output mixer"
 repository = "https://github.com/johnpoint/cordflow"
 
 [features]
+custom-protocol = ["tauri/custom-protocol"]
 type-export = []
 
 [lib]
@@ -37,7 +38,7 @@ log = "0.4"
 pipewire = "0.10.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tauri = { version = "2.11.5", features = [] }
+tauri = { version = "2.11.5", features = ["tray-icon"] }
 thiserror = "2"
 ts-rs = { version = "12.0.1", features = ["serde-compat"] }
 

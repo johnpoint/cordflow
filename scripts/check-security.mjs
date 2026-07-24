@@ -24,15 +24,15 @@ const expectedCapabilityPermissions = [
 ];
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
-const [tauriConfigText, capabilityText, permissionText, buildText, packageText] = await Promise.all(
-  [
+const [tauriConfigText, capabilityText, permissionText, buildText, packageText, cargoText] =
+  await Promise.all([
     read('src-tauri/tauri.conf.json'),
     read('src-tauri/capabilities/main.json'),
     read('src-tauri/permissions/default.toml'),
     read('src-tauri/build.rs'),
     read('package.json'),
-  ],
-);
+    read('src-tauri/Cargo.toml'),
+  ]);
 
 const tauriConfig = JSON.parse(tauriConfigText);
 const capability = JSON.parse(capabilityText);
@@ -57,7 +57,9 @@ const tauriPlugins = Object.keys({
   ...packageJson.devDependencies,
 }).filter((name) => name.startsWith('@tauri-apps/plugin-'));
 assert.deepEqual(tauriPlugins, []);
+assert.match(cargoText, /tauri = \{ version = "2\.11\.5", features = \["tray-icon"\] \}/);
+assert.match(cargoText, /custom-protocol = \["tauri\/custom-protocol"\]/);
 
 console.log(
-  'Tauri capability exposes exactly the nine approved audio and frameless-window commands and no plugins.',
+  'Tauri capability exposes exactly the nine approved audio and frameless-window commands, while the native tray adds no webview permission.',
 );

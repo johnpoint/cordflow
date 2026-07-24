@@ -5,6 +5,7 @@ mod commands;
 mod engine;
 mod graph_state;
 pub mod model;
+mod tray;
 
 use engine::PipeWireEngine;
 use tauri::Manager;
@@ -18,6 +19,10 @@ pub fn run() {
 
     let app = tauri::Builder::default()
         .manage(PipeWireEngine::spawn())
+        .setup(|app| {
+            tray::install(app)?;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::subscribe_graph,
             commands::subscribe_output_levels,
@@ -32,9 +37,13 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("failed to build Cordflow");
 
-    app.run(|app_handle, event| {
-        if matches!(event, tauri::RunEvent::Exit) {
-            app_handle.state::<PipeWireEngine>().terminate();
-        }
+    app.run(|app_handle, event| match event {
+        tauri::RunEvent::WindowEvent {
+            ref label,
+            ref event,
+            ..
+        } => tray::hide_on_close(app_handle, label, event),
+        tauri::RunEvent::Exit => app_handle.state::<PipeWireEngine>().terminate(),
+        _ => {}
     });
 }

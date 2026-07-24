@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.johnpoint.Cordflow</id>
+  <name>Cordflow</name>
+  <summary>Route and mix PipeWire audio</summary>
+  <summary xml:lang="zh-CN">路由与混合 PipeWire 音频</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <developer id="io.github.johnpoint">
+    <name>Cordflow contributors</name>
+  </developer>
+  <description>
+    <p>
+      Cordflow provides readable device and application volume controls,
+      automatic stereo audio routes, and an optional manual per-port patchbay.
+    </p>
+  </description>
+  <launchable type="desktop-id">cordflow.desktop</launchable>
+  <provides>
+    <binary>cordflow</binary>
+  </provides>
+  <url type="homepage">https://github.com/johnpoint/cordflow</url>
+  <url type="bugtracker">https://github.com/johnpoint/cordflow/issues</url>
+  <categories>
+    <category>AudioVideo</category>
+    <category>Audio</category>
+  </categories>
+  <content_rating type="oars-1.1"/>
+</component>

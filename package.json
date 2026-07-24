@@ -15,6 +15,7 @@
     "tauri": "tauri",
     "build:tauri": "tauri build --no-bundle",
     "build:deb": "tauri build --bundles deb --ci",
+    "build:arch": "bash scripts/build-arch-package.sh",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "lint": "prettier --check . && eslint .",
     "format": "prettier --write .",

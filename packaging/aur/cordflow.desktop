@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Cordflow
+Comment=PipeWire audio router and output mixer
+Comment[zh_CN]=PipeWire 音频路由与输出混音器
+Exec=cordflow
+Icon=cordflow
+Terminal=false
+Categories=AudioVideo;Audio;Music;
+StartupWMClass=cordflow

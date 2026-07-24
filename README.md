@@ -27,6 +27,10 @@ Cordflow also lets you change the system's default playback and input devices fr
 bottom bar. Application volume settings are remembered for seven days, including for
 short-lived streams such as notification sounds.
 
+Closing the main window keeps Cordflow running in the system tray so its PipeWire session
+and meters can continue in the background. Use **Show Cordflow**, **Hide**, or **Quit** in
+the tray menu; **Quit** is the explicit way to stop the application.
+
 ## Run from source
 
 Cordflow currently supports Linux with PipeWire and WirePlumber.
@@ -103,6 +107,8 @@ targets, <kbd>Enter</kbd> to connect, and <kbd>Esc</kbd> to cancel.
   graph-changing controls remain unavailable.
 - Output volume can be raised above 100%; Cordflow warns because software gain may clip or
   distort the signal.
+- On Linux, clicking the Cordflow tray icon opens its AppIndicator menu. Choose
+  **Show Cordflow** to restore and focus the window.
 
 ## Current scope
 
@@ -158,6 +164,7 @@ pnpm test:e2e
 pnpm test:pipewire-live
 pnpm build:tauri
 pnpm build:deb
+pnpm build:arch
 ```
 
 `pnpm test:pipewire-live` creates an isolated temporary PipeWire daemon and temporary
@@ -175,6 +182,10 @@ pnpm types:check
 `src-tauri/target/release/bundle/deb/`. Successful push and manually triggered CI runs
 upload the package as a `cordflow-deb-amd64-<commit>` workflow artifact retained for 30
 days.
+
+`pnpm build:arch` writes an installable Arch Linux package to
+`src-tauri/target/release/bundle/arch/`. The AUR-ready `cordflow-git` recipe and desktop
+metadata live in [`packaging/aur/`](packaging/aur/).
 
 ## License and provenance
 

@@ -1,0 +1,112 @@
+# Maintainer: johnpoint <johnpoint@users.noreply.github.com>
+
+pkgname=cordflow-git
+_pkgname=cordflow
+pkgver=0.1.0.r6.gf8ac2ac
+pkgrel=2
+pkgdesc='PipeWire audio router and output mixer'
+arch=('x86_64')
+url='https://github.com/johnpoint/cordflow'
+license=('GPL-3.0-only')
+depends=(
+  'cairo'
+  'dbus'
+  'gdk-pixbuf2'
+  'glib2'
+  'glibc'
+  'gtk3'
+  'hicolor-icon-theme'
+  'libayatana-appindicator'
+  'libgcc'
+  'libpipewire'
+  'libsoup3'
+  'pipewire'
+  'webkit2gtk-4.1'
+)
+optdepends=('wireplumber: default input and output device management')
+makedepends=(
+  'cargo'
+  'git'
+  'nodejs-lts-jod'
+  'pnpm'
+)
+provides=('cordflow')
+conflicts=('cordflow')
+options=('!debug')
+source=(
+  "${_pkgname}::git+${url}.git"
+  'cordflow.desktop'
+  'io.github.johnpoint.Cordflow.metainfo.xml'
+)
+b2sums=(
+  'SKIP'
+  'c04f5141a9cff52f5438991e0338a68bae858ceb28f57e4b5d95c5b053309462c982541d049c6062b72b255c31ef25353f76200bcb77e8dc7fe138a521fe519f'
+  '28a0e7942927d2417113d491aae22a3eaafd41407e5c3ba4a088970fa1eddf872584fe6f02be0c45f1f85539bc2ccb7daaff20d2d398c748959bf5a212518273'
+)
+
+pkgver() {
+  cd "$_pkgname"
+
+  local cargo_version
+  cargo_version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' src-tauri/Cargo.toml | head -n 1)"
+  printf '%s.r%s.g%s' \
+    "$cargo_version" \
+    "$(git rev-list --count HEAD)" \
+    "$(git rev-parse --short=7 HEAD)"
+}
+
+prepare() {
+  cd "$_pkgname"
+
+  export RUSTUP_TOOLCHAIN=stable
+  cargo fetch \
+    --locked \
+    --manifest-path src-tauri/Cargo.toml \
+    --target "$(rustc -vV | sed -n 's/^host: //p')"
+  pnpm install --frozen-lockfile
+}
+
+build() {
+  cd "$_pkgname"
+
+  export CARGO_TARGET_DIR=src-tauri/target
+  export RUSTUP_TOOLCHAIN=stable
+  pnpm build
+  cargo build \
+    --frozen \
+    --release \
+    --features custom-protocol \
+    --manifest-path src-tauri/Cargo.toml
+}
+
+check() {
+  cd "$_pkgname"
+
+  export CARGO_TARGET_DIR=src-tauri/target
+  export RUSTUP_TOOLCHAIN=stable
+  pnpm check
+  pnpm test
+  cargo test \
+    --frozen \
+    --manifest-path src-tauri/Cargo.toml
+}
+
+package() {
+  cd "$_pkgname"
+
+  install -Dm755 \
+    src-tauri/target/release/cordflow \
+    "$pkgdir/usr/bin/cordflow"
+  install -Dm644 \
+    src-tauri/icons/icon.png \
+    "$pkgdir/usr/share/icons/hicolor/128x128/apps/cordflow.png"
+  install -Dm644 \
+    LICENSE \
+    "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 \
+    "$srcdir/cordflow.desktop" \
+    "$pkgdir/usr/share/applications/cordflow.desktop"
+  install -Dm644 \
+    "$srcdir/io.github.johnpoint.Cordflow.metainfo.xml" \
+    "$pkgdir/usr/share/metainfo/io.github.johnpoint.Cordflow.metainfo.xml"
+}

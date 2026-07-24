@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "Only the PipeWire graph, device, volume, meter, and frameless-window commands required by the main window.",
+  "description": "Only the PipeWire graph, device, volume, meter, and frameless-window commands required by the main window. The native system tray exposes no webview command.",
   "windows": ["main"],
   "permissions": [
     "default",
