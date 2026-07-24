@@ -46,6 +46,16 @@ describe('OutputVolumeWorkspace', () => {
 
     expect(getByText('Built-in Audio')).toBeTruthy();
     expect(getByText('Default')).toBeTruthy();
+    const identityTitle = getByTestId('output-volume-device-3').querySelector(
+      '.output-volume-card__identity-title',
+    );
+    expect(identityTitle?.querySelector('h2')?.nextElementSibling?.textContent).toContain(
+      'Default',
+    );
+    expect(queryByTestId('output-volume-more-3')).toBeNull();
+    const defaultAction = getByTestId('output-volume-default-3') as HTMLButtonElement;
+    expect(defaultAction.textContent).toContain('Current default device');
+    expect(defaultAction.disabled).toBe(true);
     expect((getByTestId('output-volume-number-3') as HTMLInputElement).value).toBe('65');
     const meter = getByTestId('output-level-meter-3');
     expect(meter.getAttribute('role')).toBe('meter');

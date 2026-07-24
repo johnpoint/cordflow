@@ -827,23 +827,12 @@ input:focus-visible,
   border-color: var(--studio-warning);
 }
 
-.output-volume-card__more summary,
+.output-volume-card__default-action,
 .output-volume-card__reset,
 .output-volume-card__mute {
   color: var(--studio-text);
   background: var(--studio-raised);
   border-color: var(--studio-border-strong);
-}
-
-.output-volume-card__menu {
-  color: var(--studio-text);
-  background: var(--studio-overlay);
-  border-color: var(--studio-border-strong);
-  box-shadow: var(--studio-shadow);
-}
-
-.output-volume-card__menu button {
-  color: var(--studio-text);
 }
 
 .output-volume-card__clipping-risk,

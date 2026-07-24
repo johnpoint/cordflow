@@ -279,8 +279,11 @@ test('adjusts volume and mute for each output device', async ({ page }) => {
   await expect(mute).toHaveAttribute('aria-pressed', 'false', { timeout: 5_000 });
   await expect(device).not.toHaveClass(/output-volume-card--muted/);
 
-  await page.getByTestId('output-volume-more-2').click();
-  await page.getByTestId('output-volume-default-2').click();
+  await expect(page.getByTestId('output-volume-more-2')).toHaveCount(0);
+  const setDefault = page.getByTestId('output-volume-default-2');
+  await expect(setDefault).toBeVisible();
+  await expect(setDefault).toHaveText('Set as default');
+  await setDefault.click();
   await expect(page.getByTestId('default-playback-control')).toContainText('EasyEffects');
   await expect(page.getByTestId('default-playback-control').getByRole('combobox')).toHaveCount(0);
   await expect(page.getByTestId('output-volume-device-2')).toContainText('Default');

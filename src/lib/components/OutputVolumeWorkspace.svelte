@@ -172,8 +172,7 @@
     return t('outputLevelDb', { value: decibels.toFixed(1) });
   }
 
-  function setDefaultDevice(nodeId: number, event: MouseEvent): void {
-    (event.currentTarget as HTMLElement).closest('details')?.removeAttribute('open');
+  function setDefaultDevice(nodeId: number): void {
     onSetDefault(nodeId);
   }
 
@@ -286,48 +285,40 @@
                   <span aria-hidden="true">[{t(deviceType)}]</span>
                 </span>
                 <div class="output-volume-card__identity">
-                  <h2 title={nodeDisplayName(node, t('unnamedNode'))}>
-                    {nodeDisplayName(node, t('unnamedNode'))}
-                  </h2>
+                  <div class="output-volume-card__identity-title">
+                    <h2 title={nodeDisplayName(node, t('unnamedNode'))}>
+                      {nodeDisplayName(node, t('unnamedNode'))}
+                    </h2>
+                    {#if node.objectName === defaultAudioSinkName}
+                      <span class="output-volume-card__tag output-volume-card__tag--default">
+                        {t('defaultTag')}
+                      </span>
+                    {/if}
+                  </div>
                   <small title={node.objectName ?? t('nodeIdShort', { id: node.id })}>
                     {node.objectName ?? t('nodeIdShort', { id: node.id })}
                   </small>
                 </div>
                 <div class="output-volume-card__header-actions">
                   <div class="output-volume-card__tags">
-                    {#if node.objectName === defaultAudioSinkName}
-                      <span class="output-volume-card__tag output-volume-card__tag--default">
-                        {t('defaultTag')}
-                      </span>
-                    {/if}
                     {#if currentVolume !== undefined && currentVolume > 100}
                       <span class="output-volume-card__tag output-volume-card__tag--boost">
                         {t('boostTag')}
                       </span>
                     {/if}
                   </div>
-                  <details class="output-volume-card__more">
-                    <summary
-                      aria-label={t('moreDeviceActions')}
-                      title={t('moreDeviceActions')}
-                      data-testid={`output-volume-more-${node.id}`}
-                    >
-                      <span class="ascii-icon" aria-hidden="true">[..]</span>
-                    </summary>
-                    <div class="output-volume-card__menu">
-                      <button
-                        type="button"
-                        disabled={node.objectName === defaultAudioSinkName ||
-                          pendingDefaultNodeId !== null}
-                        data-testid={`output-volume-default-${node.id}`}
-                        onclick={(event) => setDefaultDevice(node.id, event)}
-                      >
-                        {node.objectName === defaultAudioSinkName
-                          ? t('currentDefaultDevice')
-                          : t('setAsDefaultDevice')}
-                      </button>
-                    </div>
-                  </details>
+                  <button
+                    class="output-volume-card__default-action"
+                    type="button"
+                    disabled={node.objectName === defaultAudioSinkName ||
+                      pendingDefaultNodeId !== null}
+                    data-testid={`output-volume-default-${node.id}`}
+                    onclick={() => setDefaultDevice(node.id)}
+                  >
+                    {node.objectName === defaultAudioSinkName
+                      ? t('currentDefaultDevice')
+                      : t('setAsDefaultDevice')}
+                  </button>
                 </div>
               </header>
 

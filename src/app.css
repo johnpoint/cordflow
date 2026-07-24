@@ -548,7 +548,14 @@ select:focus-visible,
 .output-volume-card__identity {
   min-width: 0;
 }
+.output-volume-card__identity-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
 .output-volume-card h2 {
+  min-width: 0;
   overflow: hidden;
   margin: 0;
   font-size: 14px;
@@ -600,68 +607,28 @@ select:focus-visible,
   background: #fff0dc;
   border-color: #dc9a4b;
 }
-.output-volume-card__more {
-  position: relative;
+.output-volume-card__default-action {
   flex: 0 0 auto;
-  justify-self: end;
-}
-.output-volume-card__more summary {
-  display: grid;
-  width: 30px;
-  height: 28px;
-  padding: 0;
-  place-items: center;
+  min-height: 28px;
+  padding: 4px 8px;
   color: #52616c;
-  font-size: 15px;
-  font-weight: 800;
-  list-style: none;
-  background: transparent;
-  border: 1px solid transparent;
+  font: 700 10px/1 var(--mono);
+  white-space: nowrap;
+  background: #f6f8f9;
+  border: 1px solid #bcc6cc;
   border-radius: 3px;
   cursor: pointer;
 }
-.output-volume-card__more summary::-webkit-details-marker {
-  display: none;
-}
-.output-volume-card__more summary:hover,
-.output-volume-card__more[open] summary {
+.output-volume-card__default-action:hover:not(:disabled) {
   color: var(--ink);
   background: #edf1f3;
-  border-color: #bcc6cc;
+  border-color: #8e9ca5;
 }
-.output-volume-card__more summary:focus-visible {
+.output-volume-card__default-action:focus-visible {
   outline: 3px solid #6ea8ff;
   outline-offset: 1px;
 }
-.output-volume-card__menu {
-  position: absolute;
-  z-index: 14;
-  top: 31px;
-  right: 0;
-  width: max-content;
-  min-width: 150px;
-  padding: 4px;
-  background: #fff;
-  border: 1px solid #aeb9c1;
-  border-radius: 4px;
-  box-shadow: 0 7px 18px rgba(24, 35, 44, 0.18);
-}
-.output-volume-card__menu button {
-  width: 100%;
-  min-height: 30px;
-  padding: 5px 8px;
-  color: var(--ink);
-  font-size: 10px;
-  text-align: left;
-  background: transparent;
-  border: 0;
-  border-radius: 3px;
-  cursor: pointer;
-}
-.output-volume-card__menu button:hover:not(:disabled) {
-  background: #edf2ff;
-}
-.output-volume-card__menu button:disabled {
+.output-volume-card__default-action:disabled {
   color: #87949d;
   cursor: default;
 }
