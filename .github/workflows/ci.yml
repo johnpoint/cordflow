@@ -3,6 +3,7 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -45,11 +46,11 @@ jobs:
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
 
       - name: Rust lint
-        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
 
       - name: Rust tests and generated contract
         run: |
-          cargo test --manifest-path src-tauri/Cargo.toml
+          cargo test --manifest-path src-tauri/Cargo.toml --all-features
           pnpm types:check
           pnpm security:check
 
@@ -67,3 +68,57 @@ jobs:
         run: |
           pnpm exec playwright install --with-deps chromium
           pnpm test:e2e
+
+  package-deb:
+    name: Package Debian
+    if: github.event_name != 'pull_request'
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux packaging dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            libpipewire-0.3-dev \
+            libspa-0.2-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.94.0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.10.0
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build Debian package
+        run: pnpm build:deb
+
+      - name: Inspect Debian package
+        run: |
+          deb_path="$(find src-tauri/target/release/bundle/deb -maxdepth 1 -type f -name '*.deb' -print -quit)"
+          test -n "$deb_path"
+          dpkg-deb --info "$deb_path"
+          dpkg-deb --contents "$deb_path"
+
+      - name: Upload Debian package
+        uses: actions/upload-artifact@v4
+        with:
+          name: cordflow-deb-amd64-${{ github.sha }}
+          path: src-tauri/target/release/bundle/deb/*.deb
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0

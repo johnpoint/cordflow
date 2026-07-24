@@ -107,8 +107,9 @@ targets, <kbd>Enter</kbd> to connect, and <kbd>Esc</kbd> to cancel.
 ## Current scope
 
 This MVP focuses on inspecting the live graph, controlling output volume and defaults,
-and creating or removing routes. It does not yet include installers, presets, free-form
-graph layout, undo history, or general background routing policies.
+and creating or removing routes. Debian packages are built by CI after every successful
+push or manual workflow run. Presets, free-form graph layout, undo history, and general
+background routing policies are not yet included.
 
 ## Troubleshooting
 
@@ -156,6 +157,7 @@ Additional end-to-end and integration checks are available:
 pnpm test:e2e
 pnpm test:pipewire-live
 pnpm build:tauri
+pnpm build:deb
 ```
 
 `pnpm test:pipewire-live` creates an isolated temporary PipeWire daemon and temporary
@@ -168,6 +170,11 @@ The committed TypeScript IPC contract is generated from Rust `ts-rs` declaration
 pnpm types:generate
 pnpm types:check
 ```
+
+`pnpm build:deb` writes the Debian package to
+`src-tauri/target/release/bundle/deb/`. Successful push and manually triggered CI runs
+upload the package as a `cordflow-deb-amd64-<commit>` workflow artifact retained for 30
+days.
 
 ## License and provenance
 

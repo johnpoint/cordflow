@@ -2,6 +2,7 @@
 name = "cordflow"
 version = "0.1.0"
 default-run = "cordflow"
+autobins = false
 authors = ["Cordflow contributors"]
 edition = "2021"
 rust-version = "1.94"
@@ -9,9 +10,21 @@ license = "GPL-3.0-only"
 description = "An accessible PipeWire audio router and output mixer"
 repository = "https://github.com/johnpoint/cordflow"
 
+[features]
+type-export = []
+
 [lib]
 name = "cordflow_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "cordflow"
+path = "src/main.rs"
+
+[[bin]]
+name = "export-types"
+path = "src/bin/export-types.rs"
+required-features = ["type-export"]
 
 [build-dependencies]
 tauri-build = { version = "2.6.3", features = [] }

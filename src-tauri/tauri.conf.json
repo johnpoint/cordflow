@@ -29,10 +29,19 @@
     }
   },
   "bundle": {
-    "active": false,
+    "active": true,
+    "targets": ["deb"],
     "category": "Music",
     "icon": ["icons/icon.png"],
     "license": "GPL-3.0-only",
-    "shortDescription": "An accessible PipeWire patchbay"
+    "homepage": "https://github.com/johnpoint/cordflow",
+    "shortDescription": "PipeWire audio router and output mixer",
+    "longDescription": "Cordflow provides readable device and application volume controls, automatic stereo audio routes, and an optional manual per-port patchbay for PipeWire.",
+    "linux": {
+      "deb": {
+        "depends": ["libpipewire-0.3-0"],
+        "section": "sound"
+      }
+    }
   }
 }

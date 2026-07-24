@@ -14,6 +14,7 @@
     "security:check": "node scripts/check-security.mjs",
     "tauri": "tauri",
     "build:tauri": "tauri build --no-bundle",
+    "build:deb": "tauri build --bundles deb --ci",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "lint": "prettier --check . && eslint .",
     "format": "prettier --write .",
@@ -21,7 +22,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:pipewire-live": "bash scripts/live-pipewire-smoke.sh",
-    "types:generate": "cargo run --manifest-path src-tauri/Cargo.toml --quiet --bin export-types > src/lib/generated/graph.ts",
+    "types:generate": "cargo run --manifest-path src-tauri/Cargo.toml --quiet --features type-export --bin export-types > src/lib/generated/graph.ts",
     "types:check": "cargo test --manifest-path src-tauri/Cargo.toml typescript_contract_is_current"
   },
   "dependencies": {
