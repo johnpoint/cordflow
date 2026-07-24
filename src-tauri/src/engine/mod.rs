@@ -1,7 +1,6 @@
 // Copyright 2026 Cordflow contributors
 // SPDX-License-Identifier: GPL-3.0-only
 
-mod items;
 mod pipewire;
 
 use std::{
